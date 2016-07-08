@@ -1,4 +1,5 @@
-var proc = function() {
+var Processor = function() {
+	var _this = this;
 	//These are ENUMS that are used by the processor
 	var DECIMAL_MODES = {
 		BINARY:  0,
@@ -17,4 +18,11 @@ var proc = function() {
 	this.memAccSelect = BIT_SELECT.BIT_16;
 	this.overflow = false;
 	this.negative = false;
+	this.pc = 0;
 };
+
+Processor.prototype.init = function(resetPC) {
+	this.pc = resetPC;
+}
+
+module.exports = Processor;
