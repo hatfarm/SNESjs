@@ -1,0 +1,28 @@
+{
+  "name": "snesjs",
+  "version": "1.0.0",
+  "description": "A Super Nintendo Entertainment System emulator written entirely in JavaScript",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hatfarm/SNESjs.git"
+  },
+  "keywords": [
+    "Nintendo",
+    "SNES",
+    "Emulator",
+    "rom"
+  ],
+  "author": "Chris Voss",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hatfarm/SNESjs/issues"
+  },
+  "homepage": "https://github.com/hatfarm/SNESjs#readme",
+  "dependencies": {
+    "webpack": "^1.13.1"
+  }
+}

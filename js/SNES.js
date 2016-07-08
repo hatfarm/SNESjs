@@ -24,16 +24,19 @@ var SNESEmu = function(canvas, romContent) {
 	proc.init(utils.get2ByteValue(this.romData[this.smcOffset + this.headerStart + 0x4C].charCodeAt(0), _this.romData[_this.smcOffset + this.headerStart + 0x4D].charCodeAt(0)));
 	
 	function setHiLoRom() {
-		var hiChecksum = utils.get2ByteValue(_this.romData[_this.smcOffset + HIROM_START_LOC + 0x2C].charCodeAt(0), _this.romData[_this.smcOffset + HIROM_START_LOC + 0x2D].charCodeAt(0)) | 
-							utils.get2ByteValue(_this.romData[_this.smcOffset + HIROM_START_LOC + 0x2E].charCodeAt(0), _this.romData[_this.smcOffset + HIROM_START_LOC + 0x2F].charCodeAt(0));
-		var loChecksum = utils.get2ByteValue(_this.romData[_this.smcOffset + LOROM_START_LOC + 0x2C].charCodeAt(0), _this.romData[_this.smcOffset + LOROM_START_LOC + 0x2D].charCodeAt(0)) | 
-							utils.get2ByteValue(_this.romData[_this.smcOffset + LOROM_START_LOC + 0x2E].charCodeAt(0), _this.romData[_this.smcOffset + LOROM_START_LOC + 0x2F].charCodeAt(0));
-		if (hiChecksum === 0xFFFF && _this.romData[_this.smcOffset + HIROM_START_LOC + 0x25].charCodeAt(0) & 1 === 1) {
+		var hiChecksum = getCheckSumValue(HIROM_START_LOC);
+		var hiRomSizeCheck = getROMSizeIsValid(HIROM_START_LOC);
+		var loChecksum = getCheckSumValue(LOROM_START_LOC);
+		var loRomSizeCheck = getROMSizeIsValid(LOROM_START_LOC);
+		if (hiChecksum === 0xFFFF 
+			&& _this.romData[_this.smcOffset + HIROM_START_LOC + 0x25].charCodeAt(0) & 1 === 1
+			&& hiRomSizeCheck) 
+		{
 			console.log("This is a hiRom game.")
 			_this.headerStart = HIROM_START_LOC;
 		} 
 		//This is a bit loose, but Super Mario World fails to find the correct name if we don't have this be this loose
-		if (loChecksum === 0xFFFF) {
+		if (loChecksum === 0xFFFF && loRomSizeCheck) {
 			console.log("This is a loRom game.")
 			_this.headerStart = LOROM_START_LOC;
 		} 
@@ -41,6 +44,19 @@ var SNESEmu = function(canvas, romContent) {
 		if (_this.headerStart === 0) {
 			console.log("Cannot locate header start...");
 		}
+	}
+	
+	function getCheckSumValue(romStartLoc) {
+		return utils.get2ByteValue(_this.romData[_this.smcOffset + romStartLoc + 0x2C].charCodeAt(0), _this.romData[_this.smcOffset + romStartLoc + 0x2D].charCodeAt(0)) | 
+							utils.get2ByteValue(_this.romData[_this.smcOffset + romStartLoc + 0x2E].charCodeAt(0), _this.romData[_this.smcOffset + romStartLoc + 0x2F].charCodeAt(0));
+	}
+	
+	function getROMSizeIsValid(romStartLoc) {
+		var lshift = _this.romData[_this.smcOffset + romStartLoc + 0x27].charCodeAt(0);
+		var minSize = 0x400 << (lshift - 1);
+		var maxSize = 0x400 << lshift;
+		
+		return minSize < _this.romData.length - _this.smcOffset && maxSize >= _this.romData.length - _this.smcOffset;
 	}
 	
 	function setSMCOffset() {

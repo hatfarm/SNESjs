@@ -10,6 +10,7 @@ var Processor = function() {
 		BIT_8:  1,
 	};
 	//These are flags, some make more sense than others as boolean, but technically they all could be
+	this.isEmulationMode = true; //The SNES always resets into emulation mode
 	this.carry = 0;
 	this.isZero = false;
 	this.IRQDisabled = false;
