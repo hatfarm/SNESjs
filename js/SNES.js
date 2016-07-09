@@ -21,7 +21,14 @@ var SNESEmu = function(canvas, romContent) {
 	}
 	console.log(this.romName);
 	var proc = new Processor();
-	proc.init(utils.get2ByteValue(this.romData[this.smcOffset + this.headerStart + 0x4C].charCodeAt(0), _this.romData[_this.smcOffset + this.headerStart + 0x4D].charCodeAt(0)));
+	proc.init(getResetPC());
+	
+	var running = true;
+	
+	while(running) {
+		proc.execute(_this.romData[_this.smcOffset + _this.headerStart + proc.pc].charCodeAt(0), _this.romData[_this.smcOffset + _this.headerStart + proc.pc + 1].charCodeAt(0),
+					_this.romData[_this.smcOffset + _this.headerStart + proc.pc + 2].charCodeAt(0), _this.romData[_this.smcOffset + _this.headerStart + proc.pc + 3].charCodeAt(0))
+	}
 	
 	function setHiLoRom() {
 		var hiChecksum = getCheckSumValue(HIROM_START_LOC);
@@ -67,6 +74,13 @@ var SNESEmu = function(canvas, romContent) {
 			console.log("This does not appear to have an SMC header.");
 			_this.smcOffset = 0;
 		}
+	}
+	
+	function getResetPC() {
+		//It's little endian, so we use the little endian values
+		var val = utils.get2ByteValue(_this.romData[_this.smcOffset + _this.headerStart + 0x4D].charCodeAt(0), _this.romData[_this.smcOffset + _this.headerStart + 0x4C].charCodeAt(0));
+		val = val + _this.smcOffset - (_this.headerStart + 0x50); 
+		return val;
 	}
 };
 
