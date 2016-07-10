@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
 webpack
-./launch_test_server.py
+if [ $? -eq 0 ]; then
+	./launch_test_server.py
+else
+	echo Failed build...
+fi
