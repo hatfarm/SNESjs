@@ -1,4 +1,5 @@
-var Processor = require('./processor.js');
+var CPU = require('./cpu.js');
+var Memory = require('./memory.js');
 var utils = require('./utils.js');
 var HIROM_START_LOC = 0xFFB0;
 var LOROM_START_LOC = 0x7FB0;
@@ -20,14 +21,27 @@ var SNESEmu = function(canvas, romContent) {
 		this.romName += this.romData[idx];
 	}
 	console.log(this.romName);
-	var proc = new Processor();
+	var proc = new CPU();
+	var mem = new Memory();
 	proc.init(getResetPC());
+	mem.initializeMemory(this.romData);
 	
 	var running = true;
 	
-	while(running) {
-		proc.execute(_this.romData[_this.smcOffset + _this.headerStart + proc.pc].charCodeAt(0), _this.romData[_this.smcOffset + _this.headerStart + proc.pc + 1].charCodeAt(0),
-					_this.romData[_this.smcOffset + _this.headerStart + proc.pc + 2].charCodeAt(0), _this.romData[_this.smcOffset + _this.headerStart + proc.pc + 3].charCodeAt(0))
+	function frame() {
+		update();
+		render();
+		requestAnimationFrame(frame); // request the next frame
+	}
+
+	requestAnimationFrame(frame); // start the first frame
+	
+	function render() {
+		
+	}
+	
+	function update() {
+		proc.execute(mem.getValAtLocation(proc.pc), mem.getValAtLocation(proc.pc + 1), mem.getValAtLocation(proc.pc + 2), mem.getValAtLocation(proc.pc + 3));
 	}
 	
 	function setHiLoRom() {
@@ -78,8 +92,9 @@ var SNESEmu = function(canvas, romContent) {
 	
 	function getResetPC() {
 		//It's little endian, so we use the little endian values
-		var val = utils.get2ByteValue(_this.romData[_this.smcOffset + _this.headerStart + 0x4D].charCodeAt(0), _this.romData[_this.smcOffset + _this.headerStart + 0x4C].charCodeAt(0));
-		val = val + _this.smcOffset - (_this.headerStart + 0x50); 
+		var msb = _this.romData.charCodeAt(_this.smcOffset + _this.headerStart + 0x4D);
+		var lsb = _this.romData.charCodeAt(_this.smcOffset + _this.headerStart + 0x4C);
+		var val = utils.get2ByteValue(msb, lsb); 
 		return val;
 	}
 };
