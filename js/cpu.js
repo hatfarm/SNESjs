@@ -20,8 +20,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Super NES and Super Nintendo Entertainment System are trademarks of
+  Nintendo Co., Limited and its subsidiary companies.
 **********************************************************************/
 var utils = require('./utils.js');
+var Logger = require('./logger.js');
 
 /*Most of the information here is from http://wiki.superfamicom.org/snes/show/65816+Reference*/
 /*This is the CPU for the SNES, right now, it mostly just handles PC/cycle count incrementing and also the instructions*/
@@ -68,6 +72,9 @@ var CPU = function() {
 	
 	//The memory used by the system
 	this.memory;
+	
+	//Used for debug logginc
+	this.logger = new Logger();
 };
 
 CPU.prototype.getPC = function(){
@@ -105,7 +112,7 @@ CPU.prototype.execute = function() {
 		this.incPCandCC(1, 1);
 		logString += "FAILED!";
 	}
-	console.log(logString);
+	this.logger.log(logString);
 }
 
 CPU.prototype.incPCandCC = function(pc_inc, cc_inc) {
@@ -138,6 +145,11 @@ CPU.prototype.instructionMap = {
 	0x78: function() {
 		this.IRQDisabled = true;
 		this.incPCandCC(1, 2);
+	},
+	//STA addr - Store Accumulator to Memory
+	0x8D: function(lsb, msb) {
+		this.memory.setValAtLocation(this.pbr, utils.get2ByteValue(msb,lsb), this.accumulator);
+		this.incPCandCC(3, 4);
 	},
 	//STZ - Store Zero to Memory
 	0x9C: function(lsb, msb) {

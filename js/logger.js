@@ -25,10 +25,15 @@ Super NES and Super Nintendo Entertainment System are trademarks of
   Nintendo Co., Limited and its subsidiary companies.
 **********************************************************************/
 
-var get2ByteValue = function(MSB, LSB) {
-	return (MSB * 256) + LSB;
-}
+//This is a helper class that will write to our logging text area.
+var Logger = function() {
+	this.debug = true;
+};
 
-module.exports = {
-	get2ByteValue: get2ByteValue,
-}
+Logger.prototype.log = function(val) {
+	if(this.debug) {
+		document.getElementById("debug_text").value += val + '\n';
+	}
+};
+
+module.exports = Logger;
