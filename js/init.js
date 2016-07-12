@@ -26,6 +26,7 @@ Super NES and Super Nintendo Entertainment System are trademarks of
 **********************************************************************/
 
 var SNESEmu = require('./SNES.js');
+var emulator;
 
 window.onload = function(){
 	// Check for the various File API support.
@@ -36,7 +37,7 @@ window.onload = function(){
 	
 	//This is used to startup our emulator
 	function loadRomContent(blob_content){
-		var emulator = new SNESEmu(document.getElementById( 'canv' ), blob_content);
+		emulator = new SNESEmu(document.getElementById( 'canv' ), blob_content);
 	}
 
 	
@@ -56,5 +57,13 @@ window.onload = function(){
 		}
 	}
 
+	function keypressHandler(evt){
+		if (emulator && evt.keyCode === 96) {
+			
+			emulator.keepRunning = !emulator.keepRunning; 
+		}
+	};
+	
+	document.addEventListener('keypress', keypressHandler, false);
 	document.getElementById('fileinput').addEventListener('change', handleFileSelect, false);
 };

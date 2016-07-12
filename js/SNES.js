@@ -38,7 +38,8 @@ var SNESEmu = function(canvas, romContent) {
 	this.ctx = this.canvas.getContext( '2d' );
 	this.romData = romContent;
 	this.logger = new Logger();
-	_this.headerStart = 0;
+	this.headerStart = 0;
+	this.keepRunning = true;
 	setSMCOffset();
 	setHiLoRom();
 	
@@ -58,9 +59,11 @@ var SNESEmu = function(canvas, romContent) {
 	ppu.init(memory);
 	
 	function frame() {
-		update();
-		render();
-		renderAudio();
+		if (_this.keepRunning) {
+			update();
+			render();
+			renderAudio();
+		}
 		requestAnimationFrame(frame); // request the next frame
 	}
 
