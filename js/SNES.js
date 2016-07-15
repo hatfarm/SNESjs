@@ -81,7 +81,7 @@ var SNESEmu = function(canvas, romContent) {
 	}
 	
 	function update() {
-		proc.execute();
+		proc.execute(357955);
 	}
 	
 	function setHiLoRom() {

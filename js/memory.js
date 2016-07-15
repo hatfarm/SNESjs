@@ -24,6 +24,7 @@ SOFTWARE.
 Super NES and Super Nintendo Entertainment System are trademarks of
   Nintendo Co., Limited and its subsidiary companies.
 **********************************************************************/
+var Timing = require('./timing.js');
 /*The memory in the SNES is byte addressable and is stored in several banks, there are 256 banks (0x00 -> 0xFF)
 The way memory is address is 0xBB:AAAA where BB is a bank, and then AAAA is the memory address.
 There are 16MB addressable by the system.*/
@@ -65,12 +66,58 @@ Memory.prototype.initializeMemory = function(romData) {
 	}
 }
 
+//When Register 0x420D bit 1 is set, we have fast read, otherwise, slow read, this is hardcoded to slow for now...
+var is420Db1Set() {
+	return false;
+}
+
+//Different memory locations have different timings, this information is from http://wiki.superfamicom.org/snes/show/Memory+Mapping
+Memory.prototype.getMemAccessCycleTime = function(bank, address) {
+	if(bank >= 0x40 && bank <= 0x7F) {
+		//Slow
+		return Timing.SLOW_CPU_CYCLE;
+	}
+	
+	if((bank >= 0 && bank <= 0x3F)) {
+		if((address >= 0 && address <= 0x2000) || (address >= 0x6000 && address <= 0xFFFF)) {
+			return Timing.SLOW_CPU_CYCLE;
+		} 
+		
+		if(address >= 0x4000 && address <= 0x41FF) {
+			return Timing.XSLOW_CPU_CYCLE;
+		}
+		
+		return Timing.FAST_CPU_CYCLE;
+	}
+	
+	if((bank >= 0x80 && bank <= 0xBF)) {
+		if((address >= 0 && address <= 0x2000) || (address >= 0x6000 && address <= 0x7FFF)) {
+			return Timing.SLOW_CPU_CYCLE;
+		} 
+		
+		if(address >= 0x4000 && address <= 0x41FF) {
+			return Timing.XSLOW_CPU_CYCLE;
+		}
+		
+		if(address >= 0x8000 && address <= 0xFFFF) {
+			return is420Db1Set() ? Timing.FAST_CPU_CYCLE : Timing.SLOW_CPU_CYCLE;
+		}
+		
+		return Timing.FAST_CPU_CYCLE;
+	}
+	
+	//The remaining banks follow this rule as well
+	return is420Db1Set() ? Timing.FAST_CPU_CYCLE : Timing.SLOW_CPU_CYCLE;
+}
+
 Memory.prototype.getValAtLocation = function(bank, address) {
 	return this.banks[bank][address];
 }
 
 Memory.prototype.setROMProtectedValAtLocation = function(bank, address, value) {
-	if(!isMemoryAddressROM(bank, address)) {
+	if(isMemoryAddressROM(bank, address)) {
+		throw "Attempted write to ROM Address!";
+	} else {
 		this.banks[bank][address] = value;
 	}
 }
