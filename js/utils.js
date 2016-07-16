@@ -27,8 +27,28 @@ Super NES and Super Nintendo Entertainment System are trademarks of
 
 var get2ByteValue = function(MSB, LSB) {
 	return (MSB * 256) + LSB;
-}
+};
+
+var getStringFromBuffer = function(buffer, offset, length) {
+	var dataView = new DataView(buffer.buffer.slice(offset, offset+length));
+	//This is a lot quicker, and more elegant, if it's supported, but since it's not supported by all modern browsers, I'm going to support not having it.
+	if(window.TextDecoder) {
+		var decoder = new TextDecoder("utf-8");
+		return decoder.decode(dataView);
+	}
+	//If we have to, we'll iterate over everything.
+	var str = "";
+	for(var i = 0; i < length; i++){
+		var idx = offset + i;
+		var character = dataView.getInt8(idx);
+		if(!character){break;}
+		str += String.fromCharCode(character);
+	}
+	
+	return str;
+};
 
 module.exports = {
 	get2ByteValue: get2ByteValue,
+	getStringFromBuffer: getStringFromBuffer,
 }

@@ -31,6 +31,8 @@ var EXTENDED_HEIGHT = 239;
 var MAX_WIDTH = DEFAULT_WIDTH * 2;
 var MAX_HEIGHT = EXTENDED_HEIGHT * 2;
 
+var curColorIdx = 0;
+
 /*The Picture Processing Unit (PPU) is used to render the image to a canvas that will 
 	then get stretched to fit the desired display port*/
 var PPU = function() {
@@ -39,7 +41,7 @@ var PPU = function() {
 	this.canvas.width  = DEFAULT_WIDTH;
 	this.canvas.height = DEFAULT_HEIGHT;
 	this.ctx = this.canvas.getContext( '2d' );
-	this.ctx.fillStyle = "rgb(100,100,100)";
+	this.ctx.fillStyle = "rgb(0,0,0)";
 	this.ctx.fillRect( 0, 0, this.canvas.width, this.canvas.height );
 	this.ctx.fillStyle = "rgb(255,255,255)";
 	this.ctx.fillText("SNESjs",114,110);
@@ -66,6 +68,19 @@ PPU.prototype.getImage = function() {
 	var new_image_url = this.canvas.toDataURL();
 	this.renderedImage.src = new_image_url;
 	return this.renderedImage;
+};
+
+PPU.prototype.setFPS = function(fps) {
+	if(curColorIdx >= 200) {
+		curColorIdx = 0;
+	} else {
+		curColorIdx++;
+	}
+	this.ctx.fillStyle = "rgb("+curColorIdx+","+curColorIdx+","+curColorIdx+")";
+	this.ctx.fillRect( 0, 0, this.canvas.width, this.canvas.height );
+	this.ctx.fillStyle = "rgb(255,255,255)";
+	this.ctx.fillText("SNESjs",114,110);
+	this.ctx.fillText("FPS:" + fps, 20, 20);
 };
 
 module.exports = PPU;

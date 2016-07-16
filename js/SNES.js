@@ -32,11 +32,17 @@ var Logger = require('./logger.js');
 var HIROM_START_LOC = 0xFFB0;
 var LOROM_START_LOC = 0x7FB0;
 
+function timestamp() {
+  return window.performance && window.performance.now ? window.performance.now() : new Date().getTime();
+};
+
+var previousFrameTime = timestamp();
+
 var SNESEmu = function(canvas, romContent) {
 	var _this = this;
 	this.canvas = canvas;
 	this.ctx = this.canvas.getContext( '2d' );
-	this.romData = romContent;
+	this.romData = new Uint8ClampedArray(romContent);
 	this.logger = new Logger();
 	this.headerStart = 0;
 	this.keepRunning = true;
@@ -44,12 +50,12 @@ var SNESEmu = function(canvas, romContent) {
 	setHiLoRom();
 	
 	//We want to load the name of the ROM, from the ROM, so we do that here:
-	this.romName = "";
-	for(var i = 0; i < 21; i++){
+	this.romName = utils.getStringFromBuffer(this.romData, this.headerStart + 0x010 + this.smcOffset, 21);
+	/*for(var i = 0; i < 21; i++){
 		var idx = this.headerStart + 0x010 + this.smcOffset + i;
 		if(!this.romData[idx]){break;}
 		this.romName += this.romData[idx];
-	}
+	}*/
 	this.logger.log(this.romName);
 	var proc = new CPU();
 	var memory = new Memory();
@@ -60,9 +66,14 @@ var SNESEmu = function(canvas, romContent) {
 	
 	function frame() {
 		if (_this.keepRunning) {
-			update();
+			for(var i = 0; i < 262; i++) {
+				if (!_this.keepRunning) {
+					break;
+				}
+				update(1324);
+				renderAudio();
+			}
 			render();
-			renderAudio();
 		}
 		requestAnimationFrame(frame); // request the next frame
 	}
@@ -70,6 +81,10 @@ var SNESEmu = function(canvas, romContent) {
 	requestAnimationFrame(frame); // start the first frame
 	
 	function render() {
+		var currentFrameTime = timestamp();
+		var currentFPS = (1000)/(currentFrameTime - previousFrameTime);
+		previousFrameTime = currentFrameTime;
+		ppu.setFPS(currentFPS);
 		var img = ppu.getImage();
 		//This takes the image rendered by the PPU to the ROM's specs, and then scales it to fit the desired display size.
 		_this.ctx.drawImage(img, 0, 0, img.width,    img.height,    // source rectangle
@@ -80,8 +95,8 @@ var SNESEmu = function(canvas, romContent) {
 		//TODO: Process audio
 	}
 	
-	function update() {
-		proc.execute(357955);
+	function update(numCycles) {
+		proc.execute(numCycles);
 	}
 	
 	function setHiLoRom() {
@@ -90,7 +105,7 @@ var SNESEmu = function(canvas, romContent) {
 		var loChecksum = getCheckSumValue(LOROM_START_LOC);
 		var loRomSizeCheck = getROMSizeIsValid(LOROM_START_LOC);
 		if (hiChecksum === 0xFFFF 
-			&& _this.romData[_this.smcOffset + HIROM_START_LOC + 0x25].charCodeAt(0) & 1 === 1
+			&& _this.romData[_this.smcOffset + HIROM_START_LOC + 0x25] & 1 === 1
 			&& hiRomSizeCheck) 
 		{
 			_this.logger.log("This is a hiRom game.")
@@ -108,12 +123,12 @@ var SNESEmu = function(canvas, romContent) {
 	}
 	
 	function getCheckSumValue(romStartLoc) {
-		return utils.get2ByteValue(_this.romData[_this.smcOffset + romStartLoc + 0x2C].charCodeAt(0), _this.romData[_this.smcOffset + romStartLoc + 0x2D].charCodeAt(0)) | 
-							utils.get2ByteValue(_this.romData[_this.smcOffset + romStartLoc + 0x2E].charCodeAt(0), _this.romData[_this.smcOffset + romStartLoc + 0x2F].charCodeAt(0));
+		return utils.get2ByteValue(_this.romData[_this.smcOffset + romStartLoc + 0x2C], _this.romData[_this.smcOffset + romStartLoc + 0x2D]) | 
+							utils.get2ByteValue(_this.romData[_this.smcOffset + romStartLoc + 0x2E], _this.romData[_this.smcOffset + romStartLoc + 0x2F]);
 	}
 	
 	function getROMSizeIsValid(romStartLoc) {
-		var lshift = _this.romData[_this.smcOffset + romStartLoc + 0x27].charCodeAt(0);
+		var lshift = _this.romData[_this.smcOffset + romStartLoc + 0x27];
 		var minSize = 0x400 << (lshift - 1);
 		var maxSize = 0x400 << lshift;
 		
@@ -132,8 +147,8 @@ var SNESEmu = function(canvas, romContent) {
 	
 	function getResetPC() {
 		//It's little endian, so we use the little endian values
-		var msb = _this.romData.charCodeAt(_this.smcOffset + _this.headerStart + 0x4D);
-		var lsb = _this.romData.charCodeAt(_this.smcOffset + _this.headerStart + 0x4C);
+		var msb = _this.romData[_this.smcOffset + _this.headerStart + 0x4D];
+		var lsb = _this.romData[_this.smcOffset + _this.headerStart + 0x4C];
 		var val = utils.get2ByteValue(msb, lsb); 
 		return val;
 	}

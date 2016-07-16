@@ -53,7 +53,7 @@ window.onload = function(){
 				};
 			})(f);
 			// Read in the image file as a data URL.
-			reader.readAsBinaryString(f);
+			reader.readAsArrayBuffer(f);
 		}
 	}
 

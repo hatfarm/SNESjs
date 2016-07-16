@@ -51,23 +51,21 @@ Memory.prototype.initializeMemory = function(romData) {
 	var romIndex = 0;
 	//We're going to be creating all 256 banks, and putting any data we have in them.
 	for(curBank = 0; curBank < 0xFF; curBank++) {
-		var newBank = [];
+		var newBank = new Uint8ClampedArray(0x10000);
 		var i;
 		for(i = 0; i < 0x10000; i++) {
 			//We're either copying rom data over, or we're writing a zero to the memory location
 			if (isMemoryAddressROM(curBank, i) && romIndex < romData.length) {
-				newBank.push(romData.charCodeAt(romIndex));
+				newBank[i] = romData[romIndex];
 				romIndex++;
-			} else {
-				newBank.push(0);
 			}
 		}
 		this.banks.push(newBank);
 	}
-}
+};
 
 //When Register 0x420D bit 1 is set, we have fast read, otherwise, slow read, this is hardcoded to slow for now...
-var is420Db1Set() {
+var isFastOrSlow = function() {
 	return false;
 }
 
@@ -100,14 +98,14 @@ Memory.prototype.getMemAccessCycleTime = function(bank, address) {
 		}
 		
 		if(address >= 0x8000 && address <= 0xFFFF) {
-			return is420Db1Set() ? Timing.FAST_CPU_CYCLE : Timing.SLOW_CPU_CYCLE;
+			return isFastOrSlow() ? Timing.FAST_CPU_CYCLE : Timing.SLOW_CPU_CYCLE;
 		}
 		
 		return Timing.FAST_CPU_CYCLE;
 	}
 	
 	//The remaining banks follow this rule as well
-	return is420Db1Set() ? Timing.FAST_CPU_CYCLE : Timing.SLOW_CPU_CYCLE;
+	return isFastOrSlow() ? Timing.FAST_CPU_CYCLE : Timing.SLOW_CPU_CYCLE;
 }
 
 Memory.prototype.getValAtLocation = function(bank, address) {
