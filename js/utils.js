@@ -26,7 +26,7 @@ Super NES and Super Nintendo Entertainment System are trademarks of
 **********************************************************************/
 
 var get2ByteValue = function(MSB, LSB) {
-	return (MSB * 256) + LSB;
+	return (MSB << 8) | LSB;
 };
 
 var getStringFromBuffer = function(buffer, offset, length) {

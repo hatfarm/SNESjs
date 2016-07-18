@@ -50,7 +50,7 @@ var CPU = function() {
 	this.IRQDisabled = false;
 	this.decimalMode = DECIMAL_MODES.BINARY;
 	this.indexRegisterSelect = BIT_SELECT.BIT_16;
-	this.memAccSelect = BIT_SELECT.BIT_16;
+	this.accumSizeSelect = BIT_SELECT.BIT_16;
 	this.overflow = false;
 	this.negative = false;
 	
@@ -105,15 +105,12 @@ CPU.prototype.execute = function(cycles) {
 	var cyclesLeft = cycles + this.excessCycleTime;
 	this.excessCycleTime = 0;
 	while(cyclesLeft > 0) {
-		var instructionVal = this.memory.getValAtLocation(this.pbr, this.pc);
-		var byte1 = this.memory.getValAtLocation(this.pbr, this.pc + 1);
-		var byte2 = this.memory.getValAtLocation(this.pbr, this.pc + 2);
-		var byte3 = this.memory.getValAtLocation(this.pbr, this.pc + 3);
+		var instructionVal = this.memory.getByteAtLocation(this.pbr, this.pc);
 		var logString = "PC: 0x" + this.pc.toString(16) + " -- Instruction: 0x" + instructionVal.toString(16) + "...";
 		
 		if (this.instructionMap.hasOwnProperty(instructionVal)) {
 			
-			var instruction = this.instructionMap[instructionVal].bind(this)(byte1, byte2, byte3);
+			var instruction = this.instructionMap[instructionVal].bind(this)();
 			if(instruction.CPUCycleCount <= cyclesLeft) {
 				this.incPC(instruction.size);
 				cyclesLeft -= instruction.CPUCycleCount;
@@ -147,9 +144,9 @@ CPU.prototype.setNegativeFlag = function(val) {
 	this.logger.log("Negative Flag: " + this.negative);
 };
 
-CPU.prototype.updateNegativeFlag = function() {
-	var accMask = this.isEmulationFlag || this.memAccSelect === BIT_SELECT.BIT_8 ? 0x80 : 0x8000
-	this.setNegativeFlag((this.accumulator < 0) || !!(this.accumulator & accMask));
+CPU.prototype.updateNegativeFlag = function(val, sizeSelector) {
+	var accMask = this.isEmulationFlag || sizeSelector === BIT_SELECT.BIT_8 ? 0x80 : 0x8000
+	this.setNegativeFlag((val < 0) || !!(val & accMask));
 	
 };
 
@@ -161,17 +158,26 @@ CPU.prototype.setDecimalMode = function(val) {
 
 CPU.prototype.setIndexRegisterSelect = function(val) {
 	this.indexRegisterSelect = val;
-	this.logger.log(`Index Register Size: ${this.memAccSelect === BIT_SELECT.BIT_16 ? "16 bits" : "8 bits"}`);
+	this.logger.log(`Index Register Size: ${this.accumSizeSelect === BIT_SELECT.BIT_16 ? "16 bits" : "8 bits"}`);
 }
 
 CPU.prototype.setMemoryAccumulatorSelect = function(val) {
-	this.memAccSelect = val;
-	this.logger.log(`Memory/Accumulator Size: ${this.memAccSelect === BIT_SELECT.BIT_16 ? "16 bits" : "8 bits"}`);
+	this.accumSizeSelect = val;
+	this.logger.log(`Memory/Accumulator Size: ${this.accumSizeSelect === BIT_SELECT.BIT_16 ? "16 bits" : "8 bits"}`);
 };
 
 CPU.prototype.setCarryFlag = function(val) {
 	this.carry = val;
 	this.logger.log("Carry Flag: " + this.carry);
+};
+
+CPU.prototype.updateAdditionCarryFlag = function(val, registerSizeSelect) {
+	var maxVal = registerSizeSelect === BIT_SELECT.BIT_16 ? 0xFFFF : 0xFF
+	this.setCarryFlag(val > maxVal);
+};
+
+CPU.prototype.updateSubtractionCarryFlag = function(val) {
+	this.setCarryFlag(val >= 0);
 };
 
 CPU.prototype.setIRQDisabledFlag = function(val) {
@@ -189,14 +195,21 @@ CPU.prototype.setZeroFlag = function(val) {
 	this.logger.log("Zero Flag: " + this.isZero);
 };
 
-CPU.prototype.updateZeroFlag = function() {
-	this.setZeroFlag(this.accumulator === 0);
+CPU.prototype.updateZeroFlag = function(val) {
+	this.setZeroFlag(val === 0);
 	
 };
 
 CPU.prototype.setAccumulator = function(val) {
 	this.logger.log("Accumulator: " + val.toString(16));
 	this.accumulator = val;
+};
+
+CPU.prototype.doComparison = function(operandVal, registerVal, registerSizeSelect) {
+	var result = registerVal - operandVal;
+	this.updateZeroFlag(result);
+	this.updateNegativeFlag(result, registerSizeSelect);
+	this.updateSubtractionCarryFlag(result);
 };
 
 /*Direct Indexed Indirect ((_dp,_X)) addressing is often referred to as Indirect X addressing. The second byte
@@ -208,7 +221,7 @@ CPU.prototype.instructionMap = {
 	0x0: function() {
 			return {
 				size: 2,
-				CPUCycleCount: 7*Timing.FAST_CPU_CYCLE,
+				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 2) + (Timing.FAST_CPU_CYCLE << 1) + this.memory.getMemAccessCycleTime(this.pbr, this.pc),
 				func: function() {
 					//There's no extra processing, but this skips the next opcode, and also uses an extra cycle if not in emulation mode
 				},
@@ -218,42 +231,55 @@ CPU.prototype.instructionMap = {
 	0x18: function() {
 		return {
 			size: 1,
-			CPUCycleCount: 2*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: Timing.FAST_CPU_CYCLE + this.memory.getMemAccessCycleTime(this.pbr, this.pc),
 			func: function() {
 				this.setCarryFlag(false);
 			}
 		}
 	},
 	//AND (_dp,_X) - AND accumulator with memory (direct indexed)
-	0x21: function(byte1) {
+	0x21: function() {
+			var byte1 = this.memory.getByteAtLocation(this.pbr, this.pc + 1);
+			var dpMath = this.indexX + this.dpr + byte1;
 			return {
 				size: 2,
-				CPUCycleCount: 6*this.memory.getMemAccessCycleTime(this.dbr, this.indexX + this.dpr + byte1),
+				CPUCycleCount: (this.memory.getMemAccessCycleTime(this.pbr, this.pc) << 1) + (this.memory.getMemAccessCycleTime(this.dbr, dpMath) << 1) + (Timing.FAST_CPU_CYCLE << 1),
 				func: function() {
-					var memResult = this.memory.getValAtLocation(this.dbr, this.indexX + this.dpr + byte1);
+					var memResult = this.memory.getByteAtLocation(this.dbr, dpMath);
 					this.setAccumulator(this.accumulator & memResult.val);
-					this.updateNegativeFlag();
-					this.updateZeroFlag();
+					this.updateNegativeFlag(this.accumulator, this.accumSizeSelect);
+					this.updateZeroFlag(this.accumulator);
 				}
 			}
+	},
+	//PHA - Push Accumulator
+	0x48: function() {
+			return {
+			size: 1,
+			CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + this.memory.getMemAccessCycleTime(this.pbr, this.pc), //3 CPU cycles
+			func: function() {
+				this.stack.push(this.accumulator);
+			}
+		}
 	},
 	//PHK - Push Program Bank Register
 	0x4B: function() {
 			return {
 			size: 1,
-			CPUCycleCount: 3*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + this.memory.getMemAccessCycleTime(this.pbr, this.pc), //3 CPU cycles
 			func: function() {
 				this.stack.push(this.pc);
 			}
 		}
 	},
 	//JMP addr - Jump to address (immediate)
-	0x4c: function(lsb, msb) {
+	0x4c: function() {
+		var addr = this.memory.getUInt16AtLocation(this.pbr, this.pc + 1);
 		return {
 			size: 3,
-			CPUCycleCount: 3*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + this.memory.getMemAccessCycleTime(this.pbr, this.pc), //3 CPU cycles
 			func: function() {
-				this.pc = utils.get2ByteValue(msb,lsb);
+				this.pc = addr;
 			}
 		}
 	},
@@ -262,39 +288,66 @@ CPU.prototype.instructionMap = {
 	0x78: function() {
 		return {
 			size: 1,
-			CPUCycleCount: 2*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1),
 			func: function() {
 				this.setIRQDisabledFlag(true);
 			}
 		}
 	},
-	//STA addr - Store Accumulator to Memory
-	0x8D: function(lsb, msb) {
+	//BRA nearlabel - Branch Always
+	0x80: function() {
+		var incr = this.memory.getByteAtLocation(this.pbr, this.pc + 1);
 		return {
 			size: 3,
-			CPUCycleCount: 4*this.memory.getMemAccessCycleTime(this.pbr, utils.get2ByteValue(msb, lsb)),
+			CPUCycleCount: Timing.FAST_CPU_CYCLE + (this.memory.getMemAccessCycleTime(this.pbr, this.pc) << 1),
 			func: function() {
-				this.memory.setROMProtectedValAtLocation(this.pbr, utils.get2ByteValue(msb,lsb), this.accumulator);
+				this.pc += incr;
+			}
+		}
+	},
+	//STA addr - Store Accumulator to Memory
+	0x8D: function() {
+		var addr = this.memory.getUInt16AtLocation(this.pbr, this.pc + 1);
+		return {
+			size: 3,
+			CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + this.memory.getMemAccessCycleTime(this.pbr, this.pc) + this.memory.getMemAccessCycleTime(this.pbr, addr),
+			func: function() {
+				if(this.isEmulationFlag  || this.accumSizeSelect === BIT_SELECT.BIT_8) {
+					this.memory.setROMProtectedByteAtLocation(this.pbr, addr, this.accumulator);
+				} else {
+					this.memory.setROMProtectedWordAtLocation(this.pbr, addr, this.accumulator);
+				}
 			}
 		}
 	},
 	//STA long - Store Accumulator to Memory, specific address
-	0x8F: function(bank, lsbAddr, msbAddr) {
+	0x8F: function() {
+		var bank = this.memory.getByteAtLocation(this.pbr, this.pc + 1);
+		var addr = this.memory.getUInt16AtLocation(this.pbr, this.pc + 2);
 		return {
 			size: 4,
-			CPUCycleCount: 5*this.memory.getMemAccessCycleTime(bank, utils.get2ByteValue(msbAddr, lsbAddr)),
+			CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + (this.memory.getMemAccessCycleTime(this.pbr, this.pc) << 1) + this.memory.getMemAccessCycleTime(this.pbr, addr),
 			func: function() {
-				this.memory.setROMProtectedValAtLocation(bank, utils.get2ByteValue(msbAddr,lsbAddr), this.accumulator);
+				if(this.isEmulationFlag  || this.accumSizeSelect === BIT_SELECT.BIT_8) {
+					this.memory.setROMProtectedByteAtLocation(bank, addr, this.accumulator);
+				} else {
+					this.memory.setROMProtectedWordAtLocation(bank, addr, this.accumulator);
+				}
 			}
 		}
 	},
 	//STZ - Store Zero to Memory
-	0x9C: function(lsb, msb) {
+	0x9C: function() {
+		var addr = this.memory.getUInt16AtLocation(this.pbr, this.pc + 1);
 		return {
 			size: 3,
-			CPUCycleCount: 4*this.memory.getMemAccessCycleTime(this.pbr, utils.get2ByteValue(msb, lsb)),
+			CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + this.memory.getMemAccessCycleTime(this.pbr, this.pc) + this.memory.getMemAccessCycleTime(this.pbr, addr),
 			func: function() {
-				this.memory.setROMProtectedValAtLocation(this.pbr, utils.get2ByteValue(msb, lsb), 0);
+				if(this.isEmulationFlag  || this.accumSizeSelect === BIT_SELECT.BIT_8) {
+					this.memory.setROMProtectedByteAtLocation(this.pbr, addr, 0);
+				} else {
+					this.memory.setROMProtectedWordAtLocation(this.pbr, addr, 0);
+				}
 			}
 		}
 	},
@@ -302,29 +355,31 @@ CPU.prototype.instructionMap = {
 	0xAB: function() {
 		return {
 			size: 1,
-			CPUCycleCount: 4*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: this.memory.getMemAccessCycleTime(this.pbr, this.pc) + Timing.FAST_CPU_CYCLE,
 			func: function() {
-				this.dbr = this.stack.pop();
+				this.dbr = (0xFF & this.stack.pop());
 			}
 		}
 	},
 	//LDA #const - Load Accumulator with const
-	0xA9: function(newVal) {
+	0xA9: function() {
 		return {
 			size: 2,
-			CPUCycleCount: 2*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: this.memory.getMemAccessCycleTime(this.pbr, this.pc) + Timing.FAST_CPU_CYCLE,
 			func: function() {
+				var newVal = this.memory.getByteAtLocation(this.pbr, this.pc + 1);
 				this.setAccumulator(newVal);
-				this.updateNegativeFlag();
-				this.updateZeroFlag();
+				this.updateNegativeFlag(this.accumulator, this.accumSizeSelect);
+				this.updateZeroFlag(this.accumulator);
 			}
 		}
 	},
 	//REP - Reset Processor Status Bits
-	0xC2: function(flagMask) {
+	0xC2: function() {
+		var flagMask = this.memory.getByteAtLocation(this.pbr, this.pc + 1);
 		return {
 			size: 2,
-			CPUCycleCount: 3*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: this.memory.getMemAccessCycleTime(this.pbr, this.pc) + (Timing.FAST_CPU_CYCLE << 1),
 			func: function() {
 				if (CARRY_BITMASK & flagMask) { this.setCarryFlag(false); }
 				if (ZERO_BITMASK & flagMask) { this.setZeroFlag(false); }
@@ -337,11 +392,42 @@ CPU.prototype.instructionMap = {
 			}
 		}
 	},
+	//CLD - Clear Decimal Mode Flag
+	0xD8: function() {
+		return {
+			size: 1,
+			CPUCycleCount: Timing.FAST_CPU_CYCLE + this.memory.getMemAccessCycleTime(this.pbr, this.pc),
+			func: function() {
+				this.setDecimalMode(false);
+			}
+		}
+	},
+	//CPX #const - Compare Index Register X with Memory
+	0xE0: function() {
+		if(this.indexRegisterSelect === BIT_SELECT.BIT_8) {
+			var constVal = this.memory.getByteAtLocation(this.pbr, this.pc + 1);
+			var size = 2;
+			var cycles = this.memory.getMemAccessCycleTime(this.pbr, this.pc) + Timing.FAST_CPU_CYCLE;
+		} else {
+			var constVal = this.memory.getUInt16AtLocation(this.pbr, this.pc + 1);
+			var size = 3;
+			var cycles = this.memory.getMemAccessCycleTime(this.pbr, this.pc) + (Timing.FAST_CPU_CYCLE << 1);
+		}
+		
+		return {
+			size: size,
+			CPUCycleCount: Timing.FAST_CPU_CYCLE + (Timing.FAST_CPU_CYCLE << 1),
+			func: function() {
+				this.doComparison(constVal, this.indexX, this.indexRegisterSelect);
+			}
+		}
+	},
 	//SEP - Set Processor Status Bits
-	0xE2: function(flagMask) {
+	0xE2: function() {
+		var flagMask = this.memory.getByteAtLocation(this.pbr, this.pc + 1);
 		return {
 			size: 2,
-			CPUCycleCount: 3*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: Timing.FAST_CPU_CYCLE + (Timing.FAST_CPU_CYCLE << 1),
 			func: function() {
 				if (CARRY_BITMASK & flagMask) { this.setCarryFlag(true); }
 				if (ZERO_BITMASK & flagMask) { this.setZeroFlag(true); }
@@ -358,7 +444,7 @@ CPU.prototype.instructionMap = {
 	0xFB: function() {
 		return {
 			size: 1,
-			CPUCycleCount: 2*Timing.FAST_CPU_CYCLE,
+			CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1),
 			func: function() {
 				var temp = this.isEmulationFlag;
 				this.setEmulationFlag(this.carry);

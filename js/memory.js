@@ -25,6 +25,7 @@ Super NES and Super Nintendo Entertainment System are trademarks of
   Nintendo Co., Limited and its subsidiary companies.
 **********************************************************************/
 var Timing = require('./timing.js');
+var Utils = require('./utils.js');
 /*The memory in the SNES is byte addressable and is stored in several banks, there are 256 banks (0x00 -> 0xFF)
 The way memory is address is 0xBB:AAAA where BB is a bank, and then AAAA is the memory address.
 There are 16MB addressable by the system.*/
@@ -71,52 +72,40 @@ var isFastOrSlow = function() {
 
 //Different memory locations have different timings, this information is from http://wiki.superfamicom.org/snes/show/Memory+Mapping
 Memory.prototype.getMemAccessCycleTime = function(bank, address) {
-	if(bank >= 0x40 && bank <= 0x7F) {
-		//Slow
-		return Timing.SLOW_CPU_CYCLE;
-	}
-	
-	if((bank >= 0 && bank <= 0x3F)) {
-		if((address >= 0 && address <= 0x2000) || (address >= 0x6000 && address <= 0xFFFF)) {
-			return Timing.SLOW_CPU_CYCLE;
-		} 
-		
-		if(address >= 0x4000 && address <= 0x41FF) {
-			return Timing.XSLOW_CPU_CYCLE;
-		}
-		
-		return Timing.FAST_CPU_CYCLE;
-	}
-	
-	if((bank >= 0x80 && bank <= 0xBF)) {
-		if((address >= 0 && address <= 0x2000) || (address >= 0x6000 && address <= 0x7FFF)) {
-			return Timing.SLOW_CPU_CYCLE;
-		} 
-		
-		if(address >= 0x4000 && address <= 0x41FF) {
-			return Timing.XSLOW_CPU_CYCLE;
-		}
-		
-		if(address >= 0x8000 && address <= 0xFFFF) {
-			return isFastOrSlow() ? Timing.FAST_CPU_CYCLE : Timing.SLOW_CPU_CYCLE;
-		}
-		
-		return Timing.FAST_CPU_CYCLE;
-	}
-	
-	//The remaining banks follow this rule as well
-	return isFastOrSlow() ? Timing.FAST_CPU_CYCLE : Timing.SLOW_CPU_CYCLE;
+	//From byuu himself, this is the fastest way to look this up.
+	var addr = (bank << 16) | address;
+	if(addr & 0x408000) return addr & 0x800000 ? romSpeed : 8;
+	if(addr + 0x6000 & 0x4000) return 8;
+	if(addr - 0x4000 & 0x7e00) return 6;
+	return 12;
 }
 
-Memory.prototype.getValAtLocation = function(bank, address) {
+Memory.prototype.getByteAtLocation = function(bank, address) {
 	return this.banks[bank][address];
 }
 
-Memory.prototype.setROMProtectedValAtLocation = function(bank, address, value) {
+Memory.prototype.getUInt16AtLocation = function(bank, address) {
+	//Since the SNES is little endian, we pass the msb as the second byte.
+	return Utils.get2ByteValue(this.banks[bank][address+1], this.banks[bank][address]);
+}
+
+Memory.prototype.setROMProtectedByteAtLocation = function(bank, address, value) {
 	if(isMemoryAddressROM(bank, address)) {
 		throw "Attempted write to ROM Address!";
 	} else {
 		this.banks[bank][address] = value;
+	}
+}
+
+Memory.prototype.setROMProtectedWordAtLocation = function(bank, address, value) {
+	if(isMemoryAddressROM(bank, address)) {
+		throw "Attempted write to ROM Address!";
+	} else {
+		if(value >= 0x7FFF) {
+			new DataView(this.banks[bank].buffer).setUint16(address, value, true); //True is for little endian
+		} else {
+			new DataView(this.banks[bank].buffer).setInt16(address, value, true); //True is for little endian
+		}
 	}
 }
 

@@ -51,11 +51,7 @@ var SNESEmu = function(canvas, romContent) {
 	
 	//We want to load the name of the ROM, from the ROM, so we do that here:
 	this.romName = utils.getStringFromBuffer(this.romData, this.headerStart + 0x010 + this.smcOffset, 21);
-	/*for(var i = 0; i < 21; i++){
-		var idx = this.headerStart + 0x010 + this.smcOffset + i;
-		if(!this.romData[idx]){break;}
-		this.romName += this.romData[idx];
-	}*/
+	
 	this.logger.log(this.romName);
 	var proc = new CPU();
 	var memory = new Memory();

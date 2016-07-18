@@ -80,7 +80,7 @@ PPU.prototype.setFPS = function(fps) {
 	this.ctx.fillRect( 0, 0, this.canvas.width, this.canvas.height );
 	this.ctx.fillStyle = "rgb(255,255,255)";
 	this.ctx.fillText("SNESjs",114,110);
-	this.ctx.fillText("FPS:" + fps, 20, 20);
+	this.ctx.fillText("FPS:" + fps.toFixed(1), 20, 20);
 };
 
 module.exports = PPU;
