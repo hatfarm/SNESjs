@@ -48,7 +48,18 @@ var getStringFromBuffer = function(buffer, offset, length) {
 	return str;
 };
 
+var DECIMAL_MODES = {
+	BINARY:  false,
+	DECIMAL: true,
+};
+var BIT_SELECT = {
+	BIT_16: false,
+	BIT_8:  true,
+};
+
 module.exports = {
 	get2ByteValue: get2ByteValue,
 	getStringFromBuffer: getStringFromBuffer,
+	DECIMAL_MODES: DECIMAL_MODES,
+	BIT_SELECT: BIT_SELECT,
 }
