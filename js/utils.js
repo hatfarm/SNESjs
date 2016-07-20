@@ -29,6 +29,10 @@ var get2ByteValue = function(MSB, LSB) {
 	return (MSB << 8) | LSB;
 };
 
+var get3LittleEndianByteValue = function(Byte1, Byte2, Byte3) {
+	return (Byte2 << 16)(Byte2 << 8) | Byte1;
+};
+
 var getStringFromBuffer = function(buffer, offset, length) {
 	var dataView = new DataView(buffer.buffer.slice(offset, offset+length));
 	//This is a lot quicker, and more elegant, if it's supported, but since it's not supported by all modern browsers, I'm going to support not having it.

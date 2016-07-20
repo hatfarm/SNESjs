@@ -146,8 +146,9 @@ var getInstructionMap = function(CPU) {
 		},
 		//STA long - Store Accumulator to Memory, specific address
 		0x8F: function() {
-			var bank = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
-			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 2);
+			//This is little endian, so the byte structure is ADDRL,ADDRH,BANK
+			var bank = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 3);
+			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
 			return {
 				size: 4,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, addr),
