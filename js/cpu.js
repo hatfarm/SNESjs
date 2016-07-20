@@ -82,7 +82,7 @@ CPU.prototype.getPB = function() {
 }
 
 CPU.prototype.init = function(resetPC, memory) {
-	this.pc = resetPC;
+	this.setPC(resetPC);
 	this.instructionList = new Instructions(this);
 	this.memory = memory;
 }
@@ -94,31 +94,23 @@ CPU.prototype.execute = function(cycles) {
 	while(cyclesLeft > 0) {
 		var instructionVal = this.memory.getByteAtLocation(this.pbr, this.pc);
 		var logString = "PC: 0x" + this.pc.toString(16) + " -- Instruction: 0x" + instructionVal.toString(16) + "...";
-		
-		//if (this.instructionMap.hasOwnProperty(instructionVal)) {
-			
-			var instruction = this.instructionList[instructionVal]();
-			if(instruction.CPUCycleCount <= cyclesLeft) {
-				this.incPC(instruction.size);
-				cyclesLeft -= instruction.CPUCycleCount;
-				//This needs to be last, because we have to update the PC in some instructions
-				instruction.func();
-			} else {
-				this.excessCycleTime = cyclesLeft;
-				cyclesLeft = 0;
-			}
-		/*} else {
-			logString += "\tFAILED TO EXECUTE!";
-			throw logString;
-			
-		}*/
+		var instruction = this.instructionList[instructionVal]();
+		if(instruction.CPUCycleCount <= cyclesLeft) {
+			this.incPC(instruction.size);
+			cyclesLeft -= instruction.CPUCycleCount;
+			//This needs to be last, because we have to update the PC in some instructions
+			instruction.func();
+		} else {
+			this.excessCycleTime = cyclesLeft;
+			cyclesLeft = 0;
+		}
 		this.logger.log(logString);
 		this.logger.log("============================");
 	}
 }
 
 CPU.prototype.incPC = function(pc_inc) {
-	this.pc += pc_inc;
+	this.setPC(this.pc + pc_inc);
 }
 
 CPU.prototype.setOverflowFlag = function(val) {
@@ -191,6 +183,11 @@ CPU.prototype.setAccumulator = function(val) {
 	this.logger.log("Accumulator: " + val.toString(16));
 	this.accumulator = val;
 };
+
+CPU.prototype.setPC = function(val) {
+	this.pc = val;
+	this.logger.log("Program Counter: " + this.pc);
+}
 
 CPU.prototype.doComparison = function(operandVal, registerVal, registerSizeSelect) {
 	var result = registerVal - operandVal;

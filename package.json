@@ -23,6 +23,8 @@
   },
   "homepage": "https://github.com/hatfarm/SNESjs#readme",
   "dependencies": {
+    "express": "^4.14.0",
+    "pug": "^2.0.0-beta4",
     "speaker": "^0.3.0",
     "webpack": "^1.13.1"
   }

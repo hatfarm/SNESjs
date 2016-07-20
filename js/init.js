@@ -42,19 +42,7 @@ window.onload = function(){
 
 	
 	function handleFileSelect(evt) {
-		var files = evt.target.files; // FileList object
-		// Loop through the FileList and startup the emulator
-		for (var i = 0, f; f = files[i]; i++) {
-			var reader = new FileReader();
-			// Closure to capture the file information.
-			reader.onload = (function(theFile) {
-				return function(e) {
-					loadRomContent(e.target.result);
-				};
-			})(f);
-			// Read in the image file as a data URL.
-			reader.readAsArrayBuffer(f);
-		}
+		loadRomContent(evt.detail);
 	}
 
 	function keypressHandler(evt){
@@ -65,5 +53,6 @@ window.onload = function(){
 	};
 	
 	document.addEventListener('keypress', keypressHandler, false);
-	document.getElementById('fileinput').addEventListener('change', handleFileSelect, false);
+	document.addEventListener('RomFileLoad', handleFileSelect, false);
+	window.ROMLoad();
 };

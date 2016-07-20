@@ -39,10 +39,6 @@ var MEM_ACC_SELECT_BITMASK = 0x20;
 var OVERFLOW_BITMASK = 0x40;
 var NEGATIVE_BITMASK = 0x80;
 
-/*Direct Indexed Indirect ((_dp,_X)) addressing is often referred to as Indirect X addressing. The second byte
-of the instruction is added to the sum of the Direct Register and the X Index Register. The result points
-to the X low-order 16 bits of the effective address. The Data Bank Register contains the high-order 8
-bits of the effective address. */
 var getInstructionMap = function(CPU) {
 	return {
 		//BRK -- Break
@@ -107,7 +103,7 @@ var getInstructionMap = function(CPU) {
 				size: 3,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //3 CPU cycles
 				func: function() {
-					CPU.pc = addr;
+					CPU.setPC(addr);
 				}
 			}
 		},
@@ -129,7 +125,7 @@ var getInstructionMap = function(CPU) {
 				size: 3,
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1),
 				func: function() {
-					CPU.pc += incr;
+					CPU.setPC(CPU.pc + incr);
 				}
 			}
 		},
@@ -276,7 +272,7 @@ var getInstructionMap = function(CPU) {
 				func: function() {
 					var temp = CPU.isEmulationFlag;
 					CPU.setEmulationFlag(CPU.carry);
-					CPU.carry = temp;
+					CPU.setCarryFlag(temp);
 				}
 			}
 		},
@@ -285,11 +281,13 @@ var getInstructionMap = function(CPU) {
 
 //We need to fill in something here, we want it to break when we encounter an unhandled instruction, so this is how we do that.
 var unsupportedInstruction = function(instructionNumber) {
-	return {
-		size: 0,
-		CPUCycleCount: 0,
-		func: function() {
-			throw "Invalid function " + instructionNumber.toString(16) + "!";
+	return function() {
+		return {
+			size: 0,
+			CPUCycleCount: 0,
+			func: function() {
+				throw "Invalid function 0x" + instructionNumber.toString(16) + "!";
+			}
 		}
 	}
 };
