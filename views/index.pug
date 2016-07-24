@@ -1,0 +1,9 @@
+html
+	head
+		title= "SNES Rom List"
+	body
+		h1="Roms!"
+		each val in romList
+			div
+				div
+					a(href='/roms/'+val.key) #{val.romName}

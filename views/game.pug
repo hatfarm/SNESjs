@@ -1,0 +1,26 @@
+html
+	head
+		link(href="/css/main.css", rel='stylesheet')
+		script(src='/dist/bundle.js', type="text/javascript")
+		title= romName
+	body
+		div#centerpiece
+			canvas#canv
+			
+	script(type="text/javascript").
+		window.ROMLoad = function() {
+			var fileLoc = "/games/" + "#{romName}";
+			var oReq = new XMLHttpRequest();
+			oReq.open("GET", fileLoc, true);
+			oReq.responseType = "arraybuffer";
+
+			oReq.onload = function (oEvent) {
+				var arrayBuffer = oReq.response; // Note: not oReq.responseText
+				if (arrayBuffer) {
+					var event = new CustomEvent("RomFileLoad", { detail: arrayBuffer });
+					document.dispatchEvent(event);
+				}
+			};
+
+			oReq.send(null);
+		}
