@@ -31,11 +31,20 @@ var Instructions = require('./instructions.js');
 
 var DECIMAL_MODES = utils.DECIMAL_MODES;
 var BIT_SELECT = utils.BIT_SELECT;
+var ACCUMULATOR_BUFFER_OFFSET = 0;
+var INDEX_X_BUFFER_OFFSET = 4;
+var INDEX_Y_BUFFER_OFFSET = 8;
+var LITTLE_ENDIAN_TYPED_ARRAYS_FLAG = true;
 
 /*Most of the information here is from http://wiki.superfamicom.org/snes/show/65816+Reference*/
-/*This is the CPU for the SNES, right now, it mostly just handles PC/cycle count incrementing and also the instructions*/
+/*This is the CPU for the SNES, it mostly just handles PC/cycle count incrementing and also the instructions*/
 var CPU = function() {
 	var _this = this;
+	
+	var buffer = new ArrayBuffer(12);
+	var registerDV = new DataView(buffer);
+	
+	var accumulator = 0;
 	
 	//These are flags, some make more sense than others as boolean, but technically they all could be
 	//These are technically stored in the P (Processor status) register
@@ -54,10 +63,10 @@ var CPU = function() {
 	this.pbr = 0;//Program Bank register, the memory bank address of instruction fetches
 	this.dbr = 0; //Data bank register, the default bank for memory transfers
 	this.dpr = 0; //Direct Page register, holds the memory bank address of the data the CPU is accessing during direct addressing instructions
-	this.accumulator = 0; //The accumulator, used in math
+	//this.accumulator = 0; //The accumulator, used in math
 	//Index registers, general purpose
-	this.indexX = 0;
-	this.indexY = 0;
+	var indexX = 0;
+	var indexY = 0;
 	
 	//Arrays in JS have stack functionality built in.
 	this.stack = [];
@@ -67,6 +76,103 @@ var CPU = function() {
 	
 	//Used for debug logginc
 	this.logger = new Logger();
+	
+	this.getAccumulatorOrMemorySize = function() {
+		return this.getAccumulatorSizeSelect() && this.getEmulationFlag();
+	};
+	
+	this.getAccumulatorSizeSelect = function() {
+		return this.accumSizeSelect;
+	};
+	
+	this.getIndexRegisterSize = function() {
+		return this.getIndexRegisterSelct() && this.getEmulationFlag();
+	};
+	
+	this.getEmulationFlag = function() {
+		return this.isEmulationFlag;
+	};
+	
+	this.getIndexRegisterSelct = function() {
+		return this.indexRegisterSelect;
+	};
+	
+	this.setEmulationFlag = function(val) {
+		this.isEmulationFlag = val;
+		this.logger.log("Emulation Flag: " + this.isEmulationFlag);
+	}
+	
+	this.getAccumulatorBufferOffset = function() {
+		return ACCUMULATOR_BUFFER_OFFSET;
+	};
+	
+	this.getXIndexBufferOffset = function() {
+		return INDEX_X_BUFFER_OFFSET;
+	}
+	
+	this.getYIndexBufferOffset = function() {
+		return INDEX_Y_BUFFER_OFFSET;
+	}
+	
+	this.getXIndex = function() {
+		return indexX;
+	};
+	
+	this.setXIndex = function(val) {
+		indexX = val;
+	};
+	
+	this.getYIndex = function() {
+		return indexY;
+	};
+	
+	this.setYIndex = function(val) {
+		indexY = val;
+	};
+	
+	this.getAccumulator = function() {
+		return this.getAccumulatorOrMemorySize() ? registerDV.getUint8(this.getAccumulatorBufferOffset()) : 
+													registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+	};
+	
+	this.getCarryFlagStatus = function() {
+		return this.carry;
+	};
+	
+	this.getCarryVal = function() {
+		return this.getAccumulatorOrMemorySize() ? 0x100 : 0x10000;
+	};
+	
+	this.getFullAccumulator = function() {
+		return registerDV.getUint32(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+	};
+	
+	this.setAccumulator = function(val) {
+		this.logger.log("Accumulator: 0x" + val.toString(16));
+		//We're always going to set it with 32 bits, but when we read it, it'll only be the size that we're expecting
+		if(val < 0) {
+			registerDV.setInt32(this.getAccumulatorBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		} else {
+			registerDV.setUint32(this.getAccumulatorBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		}
+	};
+	
+	this.doSubtraction = function(val) {
+		this.doAddition(val*-1)
+	};
+	
+	this.doAddition = function(val) {
+		this.setAccumulator(this.getAccumulator() + val);
+		var acc = this.getFullAccumulator();
+		this.updateCarryFlag(acc);
+		this.updateNegativeFlag(acc, this.getAccumulatorOrMemorySize());
+		this.updateZeroFlag(acc);
+		this.updateOverflowFlag(acc);
+	};
+	
+	this.updateCarryFlag = function(val) {
+		this.setCarryFlag(val & this.getCarryVal !== 0);
+	};
 	
 	/*Used for timing our cycles, when we have a number of cycles left to execute, but can't execute the next command in that time, 
 		we'll use this value to reclaim that cycle time in the next loop.*/
@@ -164,11 +270,6 @@ CPU.prototype.setIRQDisabledFlag = function(val) {
 	this.logger.log("IRQ Disabled Flag: " + this.IRQDisabled);
 };
 
-CPU.prototype.setEmulationFlag = function(val) {
-	this.isEmulationFlag = val;
-	this.logger.log("Emulation Flag: " + this.isEmulationFlag);
-}
-
 CPU.prototype.setZeroFlag = function(val) {
 	this.isZero = val;
 	this.logger.log("Zero Flag: " + this.isZero);
@@ -179,9 +280,8 @@ CPU.prototype.updateZeroFlag = function(val) {
 	
 };
 
-CPU.prototype.setAccumulator = function(val) {
-	this.logger.log("Accumulator: " + val.toString(16));
-	this.accumulator = val;
+CPU.prototype.updateOverflowFlag = function(val) {
+	
 };
 
 CPU.prototype.setPC = function(val) {

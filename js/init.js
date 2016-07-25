@@ -48,7 +48,8 @@ window.onload = function(){
 	function keypressHandler(evt){
 		if (emulator && evt.keyCode === 96) {
 			
-			emulator.keepRunning = !emulator.keepRunning; 
+			emulator.keepRunning = !emulator.keepRunning;
+			emulator.logger.printLog();
 		}
 	};
 	

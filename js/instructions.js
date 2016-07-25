@@ -64,15 +64,15 @@ var getInstructionMap = function(CPU) {
 		//AND (_dp,_X) - AND accumulator with memory (direct indexed)
 		0x21: function() {
 				var byte1 = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
-				var dpMath = CPU.indexX + CPU.dpr + byte1;
+				var dpMath = CPU.getXIndex() + CPU.dpr + byte1;
 				return {
 					size: 2,
 					CPUCycleCount: (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(CPU.dbr, dpMath) << 1) + (Timing.FAST_CPU_CYCLE << 1),
 					func: function() {
 						var memResult = CPU.memory.getByteAtLocation(CPU.dbr, dpMath);
-						CPU.setAccumulator(CPU.accumulator & memResult.val);
-						CPU.updateNegativeFlag(CPU.accumulator, CPU.accumSizeSelect);
-						CPU.updateZeroFlag(CPU.accumulator);
+						CPU.setAccumulator(CPU.getAccumulator() & memResult.val);
+						CPU.updateNegativeFlag(CPU.getAccumulator(), CPU.accumSizeSelect);
+						CPU.updateZeroFlag(CPU.getAccumulator());
 					}
 				}
 		},
@@ -82,7 +82,7 @@ var getInstructionMap = function(CPU) {
 				size: 1,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //3 CPU cycles
 				func: function() {
-					CPU.stack.push(CPU.accumulator);
+					CPU.stack.push(CPU.getAccumulator());
 				}
 			}
 		},
@@ -137,9 +137,9 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + CPU.memory.getMemAccessCycleTime(CPU.pbr, addr),
 				func: function() {
 					if(CPU.isEmulationFlag  || CPU.accumSizeSelect === BIT_SELECT.BIT_8) {
-						CPU.memory.setROMProtectedByteAtLocation(CPU.pbr, addr, CPU.accumulator);
+						CPU.memory.setROMProtectedByteAtLocation(CPU.pbr, addr, CPU.getAccumulator());
 					} else {
-						CPU.memory.setROMProtectedWordAtLocation(CPU.pbr, addr, CPU.accumulator);
+						CPU.memory.setROMProtectedWordAtLocation(CPU.pbr, addr, CPU.getAccumulator());
 					}
 				}
 			}
@@ -154,9 +154,9 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, addr),
 				func: function() {
 					if(CPU.isEmulationFlag  || CPU.accumSizeSelect === BIT_SELECT.BIT_8) {
-						CPU.memory.setROMProtectedByteAtLocation(bank, addr, CPU.accumulator);
+						CPU.memory.setROMProtectedByteAtLocation(bank, addr, CPU.getAccumulator());
 					} else {
-						CPU.memory.setROMProtectedWordAtLocation(bank, addr, CPU.accumulator);
+						CPU.memory.setROMProtectedWordAtLocation(bank, addr, CPU.getAccumulator());
 					}
 				}
 			}
@@ -194,8 +194,8 @@ var getInstructionMap = function(CPU) {
 				func: function() {
 					var newVal = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
 					CPU.setAccumulator(newVal);
-					CPU.updateNegativeFlag(CPU.accumulator, CPU.accumSizeSelect);
-					CPU.updateZeroFlag(CPU.accumulator);
+					CPU.updateNegativeFlag(CPU.getAccumulator(), CPU.accumSizeSelect);
+					CPU.updateZeroFlag(CPU.getAccumulator());
 				}
 			}
 		},
@@ -243,7 +243,7 @@ var getInstructionMap = function(CPU) {
 				size: size,
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + (Timing.FAST_CPU_CYCLE << 1),
 				func: function() {
-					CPU.doComparison(constVal, CPU.indexX, CPU.indexRegisterSelect);
+					CPU.doComparison(constVal, CPU.getXIndex(), CPU.indexRegisterSelect);
 				}
 			}
 		},
@@ -274,6 +274,20 @@ var getInstructionMap = function(CPU) {
 					var temp = CPU.isEmulationFlag;
 					CPU.setEmulationFlag(CPU.carry);
 					CPU.setCarryFlag(temp);
+				}
+			}
+		},
+		//SBC long,X - Subtract with borrow from Accumulator
+		0xFF: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH,BANK
+			var bank = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 3);
+			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			return {
+				size: 4,
+				CPUCycleCount: (Timing.FAST_CPU_CYCLE) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 2),
+				func: function() {
+					var val = CPU.getMFlag === CPU.memory.getUInt16AtLocation(bank, CPU.getXIndex() + addr);
+					CPU.doSubtraction(val);
 				}
 			}
 		},
