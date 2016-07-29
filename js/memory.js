@@ -81,8 +81,12 @@ Memory.prototype.getMemAccessCycleTime = function(bank, address) {
 }
 
 Memory.prototype.getByteAtLocation = function(bank, address) {
-	return this.banks[bank][address];
-}
+	return new DataView(this.banks[bank].buffer).getUint8(address);
+};
+
+Memory.prototype.getSignedByteAtLocation = function(bank, address) {
+	return new DataView(this.banks[bank].buffer).getInt8(address);
+};
 
 Memory.prototype.getUInt16AtLocation = function(bank, address) {
 	//Since the SNES is little endian, we pass the msb as the second byte.

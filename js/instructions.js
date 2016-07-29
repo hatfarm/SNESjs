@@ -64,7 +64,7 @@ var getInstructionMap = function(CPU) {
 		//AND (_dp,_X) - AND accumulator with memory (direct indexed)
 		0x21: function() {
 				var byte1 = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
-				var dpMath = CPU.getXIndex() + CPU.dpr + byte1;
+				var dpMath = CPU.getXIndex() + CPU.getDPR() + byte1;
 				return {
 					size: 2,
 					CPUCycleCount: (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(CPU.dbr, dpMath) << 1) + (Timing.FAST_CPU_CYCLE << 1),
@@ -107,6 +107,15 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		0x5B: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //2 CPU cycles
+				func: function() {
+					CPU.setDPR(CPU.getAccumulator16());
+				}
+			};
+		},
 		
 		//SEI - Set Interrupt Disable Flag
 		0x78: function() {
@@ -120,9 +129,10 @@ var getInstructionMap = function(CPU) {
 		},
 		//BRA nearlabel - Branch Always
 		0x80: function() {
-			var incr = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
+			var incr = CPU.memory.getSignedByteAtLocation(CPU.pbr, CPU.pc + 1);
+			var newPC = CPU.pc + incr;
 			return {
-				size: 3,
+				size: 2,
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1),
 				func: function() {
 					CPU.setPC(CPU.pc + incr);
@@ -161,6 +171,16 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//TXS - Transfer X Index to Stack Pointer
+		0x9A: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					//TODO: Implement this, first we need to implement the stack pointer correctly.
+				}
+			}
+		},
 		//STZ - Store Zero to Memory
 		0x9C: function() {
 			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
@@ -176,6 +196,44 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//LDX #const - Load Index Register X from Memory
+		0xA2: function() {
+			if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_8) {
+				var size = 2;
+				var newVal = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
+				var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE;
+			} else {
+				var size = 3;
+				var newVal = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+				var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1 + Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: size,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadX(newVal);
+				}
+			}
+		},
+		//LDA #const - Load Accumulator with const
+		0xA9: function() {
+			if (CPU.getAccumulatorSizeSelect() === BIT_SELECT.BIT_8) {
+				var size = 2;
+				var newVal = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
+				var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE;
+			} else {
+				var size = 3;
+				var newVal = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+				var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1 + Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: size,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadAccumulator(newVal);
+				}
+			}
+		},
 		//PLB - Pull Data Bank Register
 		0xAB: function() {
 			return {
@@ -183,19 +241,6 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
 				func: function() {
 					CPU.dbr = (0xFF & CPU.stack.pop());
-				}
-			}
-		},
-		//LDA #const - Load Accumulator with const
-		0xA9: function() {
-			return {
-				size: 2,
-				CPUCycleCount: CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
-				func: function() {
-					var newVal = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
-					CPU.setAccumulator(newVal);
-					CPU.updateNegativeFlag(CPU.getAccumulator(), CPU.accumSizeSelect);
-					CPU.updateZeroFlag(CPU.getAccumulator());
 				}
 			}
 		},
@@ -236,12 +281,12 @@ var getInstructionMap = function(CPU) {
 			} else {
 				var constVal = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
 				var size = 3;
-				var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1);
+				var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + Timing.FAST_CPU_CYCLE ;
 			}
 			
 			return {
 				size: size,
-				CPUCycleCount: Timing.FAST_CPU_CYCLE + (Timing.FAST_CPU_CYCLE << 1),
+				CPUCycleCount: cycles,
 				func: function() {
 					CPU.doComparison(constVal, CPU.getXIndex(), CPU.indexRegisterSelect);
 				}

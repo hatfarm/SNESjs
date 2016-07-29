@@ -62,7 +62,7 @@ var CPU = function() {
 	this.pc = 0; //Program Counter, the index of the next instruction
 	this.pbr = 0;//Program Bank register, the memory bank address of instruction fetches
 	this.dbr = 0; //Data bank register, the default bank for memory transfers
-	this.dpr = 0; //Direct Page register, holds the memory bank address of the data the CPU is accessing during direct addressing instructions
+	var dpr = 0; //Direct Page register, holds the memory bank address of the data the CPU is accessing during direct addressing instructions
 	//this.accumulator = 0; //The accumulator, used in math
 	//Index registers, general purpose
 	var indexX = 0;
@@ -80,6 +80,14 @@ var CPU = function() {
 	this.getAccumulatorOrMemorySize = function() {
 		return this.getAccumulatorSizeSelect() && this.getEmulationFlag();
 	};
+	
+	this.getDPR = function() {
+		return dpr;
+	}
+	
+	this.setDPR = function(newVal) {
+		dpr = newVal;
+	}
 	
 	this.getAccumulatorSizeSelect = function() {
 		return this.accumSizeSelect;
@@ -119,6 +127,7 @@ var CPU = function() {
 	};
 	
 	this.setXIndex = function(val) {
+		this.logger.log("X Index: " + val.toString(16));
 		indexX = val;
 	};
 	
@@ -127,6 +136,7 @@ var CPU = function() {
 	};
 	
 	this.setYIndex = function(val) {
+		this.logger.log("Y Index: " + val.toString(16));
 		indexY = val;
 	};
 	
@@ -134,6 +144,10 @@ var CPU = function() {
 		return this.getAccumulatorOrMemorySize() ? registerDV.getUint8(this.getAccumulatorBufferOffset()) : 
 													registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
 	};
+	
+	this.getAccumulator16 = function() {
+		return registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+	}
 	
 	this.getCarryFlagStatus = function() {
 		return this.carry;
@@ -162,17 +176,38 @@ var CPU = function() {
 	};
 	
 	this.doAddition = function(val) {
-		this.setAccumulator(this.getAccumulator() + val);
+		var result = this.getAccumulator() + val;
+		this.setAccumulator(result);
 		var acc = this.getFullAccumulator();
 		this.updateCarryFlag(acc);
 		this.updateNegativeFlag(acc, this.getAccumulatorOrMemorySize());
 		this.updateZeroFlag(acc);
-		this.updateOverflowFlag(acc);
+		this.updateOverflowFlag(result);
 	};
 	
 	this.updateCarryFlag = function(val) {
 		this.setCarryFlag(val & this.getCarryVal !== 0);
 	};
+	
+	this.doComparison = function(operandVal, registerVal, registerSizeSelect) {
+		/*TODO: This needs to be cleaned up to use a typed array, but that'll be just something on the backlog*/
+		var result = registerVal - operandVal;
+		this.updateZeroFlag(result);
+		this.updateNegativeFlag(result, registerSizeSelect);
+		this.updateSubtractionCarryFlag(result);
+	};
+	
+	this.loadX = function(val) {
+		this.setXIndex(val);
+		this.updateZeroFlag(val);
+		this.updateNegativeFlag(val, this.indexRegisterSelect);
+	};
+	
+	this.loadAccumulator = function(val) {
+		this.setAccumulator(val);
+		this.updateNegativeFlag(this.getAccumulator(), this.getAccumulatorSizeSelect());
+		this.updateZeroFlag(this.getAccumulator());
+	}
 	
 	/*Used for timing our cycles, when we have a number of cycles left to execute, but can't execute the next command in that time, 
 		we'll use this value to reclaim that cycle time in the next loop.*/
@@ -198,8 +233,9 @@ CPU.prototype.execute = function(cycles) {
 	var cyclesLeft = cycles + this.excessCycleTime;
 	this.excessCycleTime = 0;
 	while(cyclesLeft > 0) {
+		this.logger.log("============================");
 		var instructionVal = this.memory.getByteAtLocation(this.pbr, this.pc);
-		var logString = "PC: 0x" + this.pc.toString(16) + " -- Instruction: 0x" + instructionVal.toString(16) + "...";
+		this.logger.log("PC: 0x" + this.pc.toString(16) + " -- Instruction: 0x" + instructionVal.toString(16));
 		var instruction = this.instructionList[instructionVal]();
 		if(instruction.CPUCycleCount <= cyclesLeft) {
 			this.incPC(instruction.size);
@@ -207,10 +243,10 @@ CPU.prototype.execute = function(cycles) {
 			//This needs to be last, because we have to update the PC in some instructions
 			instruction.func();
 		} else {
+			this.logger.log("Unable to complete in cycles left.");
 			this.excessCycleTime = cyclesLeft;
 			cyclesLeft = 0;
 		}
-		this.logger.log(logString);
 		this.logger.log("============================");
 	}
 }
@@ -221,12 +257,12 @@ CPU.prototype.incPC = function(pc_inc) {
 
 CPU.prototype.setOverflowFlag = function(val) {
 	this.overflow = val;
-	this.logger.log("Overflow Flag: " + this.overflow);
+	this.logger.log("Overflow Flag: " + this.overflow.toString(16));
 };
 
 CPU.prototype.setNegativeFlag = function(val) {
 	this.negative = val;
-	this.logger.log("Negative Flag: " + this.negative);
+	this.logger.log("Negative Flag: " + this.negative.toString(16));
 };
 
 CPU.prototype.updateNegativeFlag = function(val, sizeSelector) {
@@ -237,7 +273,7 @@ CPU.prototype.updateNegativeFlag = function(val, sizeSelector) {
 
 CPU.prototype.setDecimalMode = function(val) {
 	this.decimalMode = val;
-	this.logger.log("Decimal Mode: " + this.decimalMode === DECIMAL_MODES.DECIMAL ? "DECIMAL" : "BINARY");
+	//this.logger.log("Decimal Mode: " + this.decimalMode === DECIMAL_MODES.DECIMAL ? "DECIMAL" : "BINARY");
 	this.logger.log(`Decimal Mode: ${this.decimalMode === DECIMAL_MODES.DECIMAL ? "DECIMAL" : "BINARY"}`);
 };
 
@@ -253,7 +289,7 @@ CPU.prototype.setMemoryAccumulatorSelect = function(val) {
 
 CPU.prototype.setCarryFlag = function(val) {
 	this.carry = val;
-	this.logger.log("Carry Flag: " + this.carry);
+	this.logger.log("Carry Flag: " + this.carry.toString(16));
 };
 
 CPU.prototype.updateAdditionCarryFlag = function(val, registerSizeSelect) {
@@ -281,19 +317,19 @@ CPU.prototype.updateZeroFlag = function(val) {
 };
 
 CPU.prototype.updateOverflowFlag = function(val) {
-	
+	var temp = new ArrayBuffer(4);
+	var dv = new DataView(temp);
+	if (val > 0) {
+		dv.setUint32(0, val, true);
+	} else {
+		dv.setInt32(0, val, true);
+	}
+	this.setOverflowFlag(dv.getUint32(0, true) > 0xFFFF);
 };
 
 CPU.prototype.setPC = function(val) {
 	this.pc = val;
-	this.logger.log("Program Counter: " + this.pc);
+	this.logger.log("Program Counter: " + this.pc.toString(16));
 }
-
-CPU.prototype.doComparison = function(operandVal, registerVal, registerSizeSelect) {
-	var result = registerVal - operandVal;
-	this.updateZeroFlag(result);
-	this.updateNegativeFlag(result, registerSizeSelect);
-	this.updateSubtractionCarryFlag(result);
-};
 
 module.exports = CPU;
