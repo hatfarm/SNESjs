@@ -61,7 +61,7 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
-		//JSR addr - AND accumulator with memory (direct indexed)
+		//JSR addr - Jump to Subroutine
 		0x20: function() {
 				var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
 				return {
@@ -125,6 +125,18 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //2 CPU cycles
 				func: function() {
 					CPU.setDPR(CPU.getAccumulator16());
+					CPU.updateZeroFlag(CPU.getAccumulator16());
+					CPU.updateNegativeFlag(CPU.getAccumulator16(), BIT_SELECT.BIT_16)
+				}
+			};
+		},
+		//RTS - Return from Subroutine
+		0x60: function() {
+			return {
+				size: 1,
+				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.getStackPointer()) << 1), //6 CPU cycles
+				func: function() {
+					CPU.returnFromSubroutine(false);
 				}
 			};
 		},
@@ -192,6 +204,21 @@ var getInstructionMap = function(CPU) {
 						CPU.memory.setROMProtectedByteAtLocation(CPU.pbr, addr, CPU.getAccumulator());
 					} else {
 						CPU.memory.setROMProtectedWordAtLocation(CPU.pbr, addr, CPU.getAccumulator());
+					}
+				}
+			}
+		},
+		//STX addr - Store Index Register X to Memory
+		0x8E: function() {
+			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			return {
+				size: 3,
+				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + CPU.memory.getMemAccessCycleTime(CPU.pbr, addr),
+				func: function() {
+					if(CPU.getIndexRegisterSize()) {
+						CPU.memory.setROMProtectedByteAtLocation(CPU.pbr, addr, CPU.getXIndex());
+					} else {
+						CPU.memory.setROMProtectedWordAtLocation(CPU.pbr, addr, CPU.getXIndex());
 					}
 				}
 			}

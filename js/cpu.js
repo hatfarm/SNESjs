@@ -95,8 +95,21 @@ var CPU = function() {
 		this.setPC(address);
 	};
 	
+	this.returnFromSubroutine = function(isBankPushed) {
+		var LSB = this.popStack();
+		var MSB = this.popStack();
+		this.setPC(utils.get2ByteValue(MSB, LSB));
+		if (isBankPushed) {
+			this.setPBR(this.popStack());
+		}
+	};
+	
 	this.getAccumulatorOrMemorySize = function() {
 		return this.getAccumulatorSizeSelect() && this.getEmulationFlag();
+	};
+	
+	this.getStackPointer = function(val) {
+		return stack.getPointer();
 	};
 	
 	this.pushStack = function(val) {

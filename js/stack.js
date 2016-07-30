@@ -58,6 +58,10 @@ var Stack = function() {
 	this.init = function(mem) {
 		memory = mem;
 		pointer[0] = 0x01FF;
+	};
+	
+	this.getPointer = function() {
+		return pointer[0];
 	}
 };
 
