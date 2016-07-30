@@ -33,6 +33,27 @@ var get3LittleEndianByteValue = function(Byte1, Byte2, Byte3) {
 	return (Byte2 << 16)(Byte2 << 8) | Byte1;
 };
 
+var getBigEndianWordArray = function(word) {
+	var temp = new ArrayBuffer(2);
+	var retVal = new DataView(temp);
+	if (word < 0) {
+		retVal.setUint16(0, word);
+	} else {
+		retVal.setInt16(0, word);
+	}
+	return retVal;
+};
+
+var getMSBFromWord = function(word) {
+	var arr = getBigEndianWordArray(word);
+	return arr.getUint8(0);
+};
+
+var getLSBFromWord = function(word) {
+	var arr = getBigEndianWordArray(word);
+	return arr.getUint8(1);
+};
+
 var getStringFromBuffer = function(buffer, offset, length) {
 	var dataView = new DataView(buffer.buffer.slice(offset, offset+length));
 	//This is a lot quicker, and more elegant, if it's supported, but since it's not supported by all modern browsers, I'm going to support not having it.
@@ -66,4 +87,6 @@ module.exports = {
 	getStringFromBuffer: getStringFromBuffer,
 	DECIMAL_MODES: DECIMAL_MODES,
 	BIT_SELECT: BIT_SELECT,
+	getMSBFromWord: getMSBFromWord,
+	getLSBFromWord: getLSBFromWord,
 }

@@ -27,6 +27,7 @@ Super NES and Super Nintendo Entertainment System are trademarks of
 var utils = require('./utils.js');
 var Logger = require('./logger.js');
 var Instructions = require('./instructions.js');
+var Stack = require('./stack.js');
 //These are ENUMS that are used by the CPU
 
 var DECIMAL_MODES = utils.DECIMAL_MODES;
@@ -53,8 +54,8 @@ var CPU = function() {
 	this.isZero = false;
 	this.IRQDisabled = false;
 	this.decimalMode = DECIMAL_MODES.BINARY;
-	this.indexRegisterSelect = BIT_SELECT.BIT_16;
-	this.accumSizeSelect = BIT_SELECT.BIT_16;
+	this.indexRegisterSelect = BIT_SELECT.BIT_8;
+	this.accumSizeSelect = BIT_SELECT.BIT_8;
 	this.overflow = false;
 	this.negative = false;
 	
@@ -63,13 +64,13 @@ var CPU = function() {
 	this.pbr = 0;//Program Bank register, the memory bank address of instruction fetches
 	this.dbr = 0; //Data bank register, the default bank for memory transfers
 	var dpr = 0; //Direct Page register, holds the memory bank address of the data the CPU is accessing during direct addressing instructions
-	//this.accumulator = 0; //The accumulator, used in math
+
 	//Index registers, general purpose
 	var indexX = 0;
 	var indexY = 0;
 	
 	//Arrays in JS have stack functionality built in.
-	this.stack = [];
+	var stack = new Stack();
 	
 	//The memory used by the system
 	this.memory;
@@ -77,8 +78,37 @@ var CPU = function() {
 	//Used for debug logginc
 	this.logger = new Logger();
 	
+	this.init = function(resetPC, memory) {
+		this.setPC(resetPC);
+		this.instructionList = new Instructions(this);
+		this.memory = memory;
+		stack.init(memory);
+	};
+	
+	this.jumpToSubroutine = function(address, bank) {
+		if (bank !== null && bank !== undefined) {
+			this.pushStack(this.getPBR());
+			this.setPBR(bank);
+		}
+		this.pushStack(utils.getMSBFromWord(this.getPC()));
+		this.pushStack(utils.getLSBFromWord(this.getPC()));
+		this.setPC(address);
+	};
+	
 	this.getAccumulatorOrMemorySize = function() {
 		return this.getAccumulatorSizeSelect() && this.getEmulationFlag();
+	};
+	
+	this.pushStack = function(val) {
+		stack.push(val);
+	};
+	
+	this.popStack = function() {
+		return stack.pop();
+	};
+	
+	this.setStackPointer = function(val) {
+		stack.setPointer(val);
 	};
 	
 	this.getDPR = function() {
@@ -209,6 +239,15 @@ var CPU = function() {
 		this.updateZeroFlag(this.getAccumulator());
 	}
 	
+	this.getPBR = function() {
+		return this.pbr;
+	};
+	
+	this.setPBR = function(val) {
+		this.logger.log("Program Counter Bank Register: " + val.toString(16));
+		this.pbr = val;
+	};
+	
 	/*Used for timing our cycles, when we have a number of cycles left to execute, but can't execute the next command in that time, 
 		we'll use this value to reclaim that cycle time in the next loop.*/
 	this.excessCycleTime = 0;
@@ -218,15 +257,7 @@ CPU.prototype.getPC = function(){
 	return this.pc;
 }
 
-CPU.prototype.getPB = function() {
-	return this.pbr;
-}
 
-CPU.prototype.init = function(resetPC, memory) {
-	this.setPC(resetPC);
-	this.instructionList = new Instructions(this);
-	this.memory = memory;
-}
 
 CPU.prototype.execute = function(cycles) {
 	//We gain back our excess cycles this loop.

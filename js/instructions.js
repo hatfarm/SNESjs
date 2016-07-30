@@ -61,6 +61,17 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//JSR addr - AND accumulator with memory (direct indexed)
+		0x20: function() {
+				var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+				return {
+					size: 3,
+					CPUCycleCount: (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE,
+					func: function() {
+						CPU.jumpToSubroutine(addr, null);
+					}
+				}
+		},
 		//AND (_dp,_X) - AND accumulator with memory (direct indexed)
 		0x21: function() {
 				var byte1 = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
@@ -82,7 +93,7 @@ var getInstructionMap = function(CPU) {
 				size: 1,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //3 CPU cycles
 				func: function() {
-					CPU.stack.push(CPU.getAccumulator());
+					CPU.pushStack(CPU.getAccumulator());
 				}
 			}
 		},
@@ -92,7 +103,7 @@ var getInstructionMap = function(CPU) {
 				size: 1,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //3 CPU cycles
 				func: function() {
-					CPU.stack.push(CPU.pc);
+					CPU.pushStack(CPU.pc);
 				}
 			}
 		},
@@ -107,6 +118,7 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//TCD - Transfer 16-bit Accumulator to Direct Page Register
 		0x5B: function() {
 			return {
 				size: 1,
@@ -139,6 +151,36 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//STA dp - Store Accumulator to Memory
+		0x85: function() {
+			var addr = utils.get2ByteValue(CPU.getDPR(), CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			return {
+				size: 2,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + CPU.memory.getMemAccessCycleTime(0, addr),
+				func: function() {
+					if(CPU.getAccumulatorOrMemorySize()) {
+						CPU.memory.setROMProtectedByteAtLocation(0, addr, CPU.getAccumulator());
+					} else {
+						CPU.memory.setROMProtectedWordAtLocation(0, addr, CPU.getAccumulator());
+					}
+				}
+			}
+		},
+		//STX dp - Store Index Register X to Memory
+		0x86: function() {
+			var addr = utils.get2ByteValue(CPU.getDPR(), CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			return {
+				size: 2,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + CPU.memory.getMemAccessCycleTime(0, addr),
+				func: function() {
+					if(CPU.getIndexRegisterSize()) {
+						CPU.memory.setROMProtectedByteAtLocation(0, addr, CPU.getXIndex());
+					} else {
+						CPU.memory.setROMProtectedWordAtLocation(0, addr, CPU.getXIndex());
+					}
+				}
+			}
+		},
 		//STA addr - Store Accumulator to Memory
 		0x8D: function() {
 			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
@@ -146,7 +188,7 @@ var getInstructionMap = function(CPU) {
 				size: 3,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + CPU.memory.getMemAccessCycleTime(CPU.pbr, addr),
 				func: function() {
-					if(CPU.isEmulationFlag  || CPU.accumSizeSelect === BIT_SELECT.BIT_8) {
+					if(CPU.getAccumulatorOrMemorySize()) {
 						CPU.memory.setROMProtectedByteAtLocation(CPU.pbr, addr, CPU.getAccumulator());
 					} else {
 						CPU.memory.setROMProtectedWordAtLocation(CPU.pbr, addr, CPU.getAccumulator());
@@ -177,7 +219,7 @@ var getInstructionMap = function(CPU) {
 				size: 1,
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
 				func: function() {
-					//TODO: Implement this, first we need to implement the stack pointer correctly.
+					CPU.setStackPointer(CPU.getXIndex());
 				}
 			}
 		},
@@ -240,7 +282,7 @@ var getInstructionMap = function(CPU) {
 				size: 1,
 				CPUCycleCount: CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
 				func: function() {
-					CPU.dbr = (0xFF & CPU.stack.pop());
+					CPU.dbr = (0xFF & CPU.popStack());
 				}
 			}
 		},
