@@ -75,7 +75,7 @@ var CPU = function() {
 	//The memory used by the system
 	this.memory;
 	
-	//Used for debug logginc
+	//Used for debug logging
 	this.logger = new Logger();
 	
 	this.init = function(resetPC, memory) {
@@ -105,7 +105,7 @@ var CPU = function() {
 	};
 	
 	this.getAccumulatorOrMemorySize = function() {
-		return this.getAccumulatorSizeSelect() && this.getEmulationFlag();
+		return this.getAccumulatorSizeSelect() || this.getEmulationFlag();
 	};
 	
 	this.getStackPointer = function(val) {
@@ -124,6 +124,14 @@ var CPU = function() {
 		stack.setPointer(val);
 	};
 	
+	this.getDirectPageValue = function(val, index) {
+		return dpr + val + index ? index : 0;
+	}
+	
+	this.getDPRLowNotZero = function() {
+		return dpr & 0x0FF !== 0;
+	}
+	
 	this.getDPR = function() {
 		return dpr;
 	}
@@ -137,7 +145,7 @@ var CPU = function() {
 	};
 	
 	this.getIndexRegisterSize = function() {
-		return this.getIndexRegisterSelct() && this.getEmulationFlag();
+		return this.getIndexRegisterSelct() || this.getEmulationFlag();
 	};
 	
 	this.getEmulationFlag = function() {
@@ -242,6 +250,12 @@ var CPU = function() {
 	
 	this.loadX = function(val) {
 		this.setXIndex(val);
+		this.updateZeroFlag(val);
+		this.updateNegativeFlag(val, this.indexRegisterSelect);
+	};
+	
+	this.loadY = function(val) {
+		this.setYIndex(val);
 		this.updateZeroFlag(val);
 		this.updateNegativeFlag(val, this.indexRegisterSelect);
 	};
@@ -354,6 +368,10 @@ CPU.prototype.setZeroFlag = function(val) {
 	this.isZero = val;
 	this.logger.log("Zero Flag: " + this.isZero);
 };
+
+CPU.prototype.getZeroFlag = function() {
+	return this.isZero;
+}
 
 CPU.prototype.updateZeroFlag = function(val) {
 	this.setZeroFlag(val === 0);

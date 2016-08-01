@@ -78,7 +78,15 @@ Memory.prototype.getMemAccessCycleTime = function(bank, address) {
 	if(addr + 0x6000 & 0x4000) return 8;
 	if(addr - 0x4000 & 0x7e00) return 6;
 	return 12;
-}
+};
+
+Memory.prototype.getUnsignedValAtLocation = function(bank, address, isEightBit) {
+	if (isEightBit) {
+		return this.getByteAtLocation(bank, address);
+	}
+	
+	return this.getUInt16AtLocation(bank, address);
+};
 
 Memory.prototype.getByteAtLocation = function(bank, address) {
 	return new DataView(this.banks[bank].buffer).getUint8(address);
@@ -99,7 +107,15 @@ Memory.prototype.setROMProtectedByteAtLocation = function(bank, address, value) 
 	} else {
 		this.banks[bank][address] = value;
 	}
-}
+};
+
+Memory.prototype.setROMProtectedValAtLocation = function(bank, address, value, isEightBit) {
+	if (isEightBit) {
+		this.setROMProtectedByteAtLocation(bank, address, value);
+	} else {
+		this.setROMProtectedWordAtLocation(bank, address, value);
+	}
+};
 
 Memory.prototype.setROMProtectedWordAtLocation = function(bank, address, value) {
 	if(isMemoryAddressROM(bank, address)) {
