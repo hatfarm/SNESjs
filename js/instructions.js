@@ -39,6 +39,25 @@ var MEM_ACC_SELECT_BITMASK = 0x20;
 var OVERFLOW_BITMASK = 0x40;
 var NEGATIVE_BITMASK = 0x80;
 
+var getIndirectLongIndexedYCyclesAddrBank = function(CPU) {
+	var addressLocation = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+	var bank = CPU.memory.getByteAtLocation(0, addressLocation + 2);
+	var addr = CPU.memory.getUInt16AtLocation(0, addressLocation) + CPU.getYIndex();
+	var cycles = (CPU.memory.getMemAccessCycleTime(0, addressLocation) << 1) + Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(bank, addr);
+	if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+		cycles += CPU.memory.getMemAccessCycleTime(bank, addr);
+	}
+	
+	if (CPU.getDPRLowNotZero()) {
+		cycles += Timing.FAST_CPU_CYCLE;
+	}
+	return {
+		bank: bank,
+		addr: addr, 
+		cycles: cycles,
+	}
+};
+
 var getInstructionMap = function(CPU) {
 	return {
 		//BRK -- Break
@@ -157,6 +176,28 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//ADC #const - Add with Carry
+		0x69: function() {
+			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_8) {
+				var size = 2;
+				var addVal = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
+				var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE;
+			} else {
+				var size = 3;
+				var addVal = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+				var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + Timing.FAST_CPU_CYCLE;
+			}
+			if (CPU.getDecimalMode() === DECIMAL_MODES.DECIMAL) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: size,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.doAddition(addVal);
+				}
+			}
+		},
 		
 		//SEI - Set Interrupt Disable Flag
 		0x78: function() {
@@ -220,6 +261,16 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
 				func: function() {
 					CPU.loadY(CPU.getYIndex() - 1);
+				}
+			}
+		},
+		//TXA - Transfer X Index to Accumulator
+		0x8A: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					CPU.loadAccumulator(CPU.getXIndex());
 				}
 			}
 		},
@@ -287,22 +338,12 @@ var getInstructionMap = function(CPU) {
 		},
 		//STA (dp), Y - Store Accumulator to Memory
 		0x97: function() {
-			var addressLocation = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
-			var bank = CPU.memory.getByteAtLocation(0, addressLocation + 2);
-			var addr = CPU.memory.getUInt16AtLocation(0, addressLocation) + CPU.getYIndex();
-			var cycles = (CPU.memory.getMemAccessCycleTime(0, addressLocation) << 1) + Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(bank, addr);
-			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
-				cycles += CPU.memory.getMemAccessCycleTime(bank, addr);
-			}
-			
-			if (CPU.getDPRLowNotZero()) {
-				cycles += Timing.FAST_CPU_CYCLE;
-			}
+			var vals = getIndirectLongIndexedYCyclesAddrBank(CPU);
 			return {
 				size: 2,
-				CPUCycleCount: cycles,
+				CPUCycleCount: vals.cycles,
 				func: function() {
-					CPU.memory.setROMProtectedValAtLocation(bank, addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
+					CPU.memory.setROMProtectedValAtLocation(vals.bank, vals.addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
 				}
 			}
 		},
@@ -420,6 +461,17 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//LDA [_dp_],Y - Load Accumulator from Memory
+		0xB7: function() {
+			var vals = getIndirectLongIndexedYCyclesAddrBank(CPU);
+			return {
+				size: 2,
+				CPUCycleCount: vals.cycles,
+				func: function() {
+					CPU.loadAccumulator(CPU.memory.getUnsignedValAtLocation(vals.bank, vals.addr, CPU.getAccumulatorOrMemorySize()));
+				}
+			}
+		},
 		//REP - Reset Processor Status Bits
 		0xC2: function() {
 			var flagMask = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
@@ -463,7 +515,7 @@ var getInstructionMap = function(CPU) {
 			var branchOffset = CPU.memory.getSignedByteAtLocation(CPU.pbr, CPU.getPC() + 1);
 			var addr = branchOffset + CPU.getPC() + 2;
 			var crossedPageBoundary = (CPU.getPC() & 0xFF00) != (addr & 0xFF00);
-			var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.getPC()) << 1) + CPU.getZeroFlag() ? 0 : (Timing.FAST_CPU_CYCLE + CPU.isEmulationFlag() && crossedPageBoundary ? Timing.FAST_CPU_CYCLE : 0);
+			var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.getPC()) << 1) + CPU.getZeroFlag() ? 0 : (Timing.FAST_CPU_CYCLE + (CPU.isEmulationFlag() && crossedPageBoundary ? Timing.FAST_CPU_CYCLE : 0));
 			return {
 				size: 2,
 				CPUCycleCount: cycles,
@@ -560,6 +612,22 @@ var getInstructionMap = function(CPU) {
 					CPU.updateZeroFlag(newVal);
 					CPU.updateNegativeFlag(newVal, CPU.getAccumulatorOrMemorySize());
 					CPU.memory.setROMProtectedValAtLocation(CPU.pbr, addr, newVal, CPU.getAccumulatorOrMemorySize());
+				}
+			}
+		},
+		//BEQ - Branch if equal
+		0xF0: function() {
+			var branchOffset = CPU.memory.getSignedByteAtLocation(CPU.pbr, CPU.getPC() + 1);
+			var addr = branchOffset + CPU.getPC() + 2;
+			var crossedPageBoundary = (CPU.getPC() & 0xFF00) != (addr & 0xFF00);
+			var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.getPC()) << 1) + !CPU.getZeroFlag() ? 0 : (Timing.FAST_CPU_CYCLE + (CPU.isEmulationFlag() && crossedPageBoundary ? Timing.FAST_CPU_CYCLE : 0));
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					if (CPU.getZeroFlag()) {
+						CPU.setPC(addr);
+					}
 				}
 			}
 		},

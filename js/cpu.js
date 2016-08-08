@@ -332,6 +332,10 @@ CPU.prototype.updateNegativeFlag = function(val, sizeSelector) {
 	
 };
 
+CPU.prototype.getDecimalMode = function() {
+	return this.decimalMode;
+}
+
 CPU.prototype.setDecimalMode = function(val) {
 	this.decimalMode = val;
 	//this.logger.log("Decimal Mode: " + this.decimalMode === DECIMAL_MODES.DECIMAL ? "DECIMAL" : "BINARY");
