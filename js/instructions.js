@@ -285,12 +285,14 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
-		//STA (_dp, _Y) - Store Accumulator to Memory
+		//STA (dp), Y - Store Accumulator to Memory
 		0x97: function() {
-			var addr = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1), CPU.getYIndex());
-			var cycles = (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(0, addr);
+			var addressLocation = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var bank = CPU.memory.getByteAtLocation(0, addressLocation + 2);
+			var addr = CPU.memory.getUInt16AtLocation(0, addressLocation) + CPU.getYIndex();
+			var cycles = (CPU.memory.getMemAccessCycleTime(0, addressLocation) << 1) + Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(bank, addr);
 			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
-				cycles += CPU.memory.getMemAccessCycleTime(0, addr);
+				cycles += CPU.memory.getMemAccessCycleTime(bank, addr);
 			}
 			
 			if (CPU.getDPRLowNotZero()) {
@@ -300,7 +302,7 @@ var getInstructionMap = function(CPU) {
 				size: 2,
 				CPUCycleCount: cycles,
 				func: function() {
-					CPU.memory.setROMProtectedValAtLocation(0, addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
+					CPU.memory.setROMProtectedValAtLocation(bank, addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
 				}
 			}
 		},

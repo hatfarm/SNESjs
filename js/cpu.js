@@ -125,7 +125,7 @@ var CPU = function() {
 	};
 	
 	this.getDirectPageValue = function(val, index) {
-		return dpr + val + index ? index : 0;
+		return dpr + val + (index ? index : 0);
 	}
 	
 	this.getDPRLowNotZero = function() {
@@ -192,9 +192,12 @@ var CPU = function() {
 	};
 	
 	this.getAccumulator = function() {
-		return this.getAccumulatorOrMemorySize() ? registerDV.getUint8(this.getAccumulatorBufferOffset()) : 
-													registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		return this.getAccumulatorOrMemorySize() ? this.getAccumulator8() : this.getAccumulator16();
 	};
+	
+	this.getAccumulator8 = function() {
+		return registerDV.getUint8(this.getAccumulatorBufferOffset())
+	}
 	
 	this.getAccumulator16 = function() {
 		return registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
