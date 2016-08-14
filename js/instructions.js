@@ -58,6 +58,21 @@ var getIndirectLongIndexedYCyclesAddrBank = function(CPU) {
 	}
 };
 
+var getRelativeBranchInformation = function(CPU, isBranchTaken, isBranchAlways) {
+	var branchOffset = CPU.memory.getSignedByteAtLocation(CPU.pbr, CPU.getPC() + 1);
+	var addr = branchOffset + CPU.getPC() + 2;
+	var crossedPageBoundary = (CPU.getPC() & 0xFF00) != (addr & 0xFF00);
+	if (!isBranchAlways) {
+		var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.getPC()) << 1) + !isBranchTaken ? 0 : (Timing.FAST_CPU_CYCLE + (CPU.getEmulationFlag() && crossedPageBoundary ? Timing.FAST_CPU_CYCLE : 0));
+	} else {
+		var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.getPC()) << 1) + (CPU.getEmulationFlag() && crossedPageBoundary ? Timing.FAST_CPU_CYCLE : 0);
+	}
+	return {
+		addr: addr,
+		cycles: cycles,
+	}
+}
+
 var getInstructionMap = function(CPU) {
 	return {
 		//BRK -- Break
@@ -136,6 +151,28 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//MVN - Block Move Next
+		0x54: function() {
+			var srcBank = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
+			var dstBank = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 2);
+			var size = CPU.getAccumulator16() + 1;
+			return {
+				size: 3,
+				CPUCycleCount: size * (Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + 
+										CPU.memory.getMemAccessCycleTime(dstBank, CPU.getYIndex()) + CPU.memory.getMemAccessCycleTime(srcBank, CPU.getXIndex())),
+				func: function() {
+					var accum = CPU.getAccumulator16();
+					//You could just do a memcpy here, but I'm not sure that a memcpy with overlapping addresses would work, and so this ensures it works right.
+					while (accum != 0xFFFF) {
+						CPU.memory.setROMProtectedByteAtLocation(dstBank, CPU.getYIndex(), CPU.memory.getByteAtLocation(srcBank, CPU.getXIndex()));
+						CPU.setXIndex(CPU.getXIndex() + 1);
+						CPU.setYIndex(CPU.getYIndex() + 1);
+						CPU.setAccumulator(accum ? accum - 1 : 0xFFFF);
+						accum = CPU.getAccumulator16();
+					}
+				}
+			};
+		},
 		//TCD - Transfer 16-bit Accumulator to Direct Page Register
 		0x5B: function() {
 			return {
@@ -144,7 +181,7 @@ var getInstructionMap = function(CPU) {
 				func: function() {
 					CPU.setDPR(CPU.getAccumulator16());
 					CPU.updateZeroFlag(CPU.getAccumulator16());
-					CPU.updateNegativeFlag(CPU.getAccumulator16(), BIT_SELECT.BIT_16)
+					CPU.updateNegativeFlag(CPU.getAccumulator16(), BIT_SELECT.BIT_16);
 				}
 			};
 		},
@@ -211,13 +248,12 @@ var getInstructionMap = function(CPU) {
 		},
 		//BRA nearlabel - Branch Always
 		0x80: function() {
-			var incr = CPU.memory.getSignedByteAtLocation(CPU.pbr, CPU.pc + 1);
-			var newPC = CPU.pc + incr;
+			var branchInfo = getRelativeBranchInformation(CPU, true, true);
 			return {
 				size: 2,
-				CPUCycleCount: Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1),
+				CPUCycleCount: branchInfo.cycles,
 				func: function() {
-					CPU.setPC(CPU.pc + incr);
+					CPU.setPC(branchInfo.addr);
 				}
 			}
 		},
@@ -328,7 +364,7 @@ var getInstructionMap = function(CPU) {
 				size: 4,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, addr),
 				func: function() {
-					if(CPU.isEmulationFlag  || CPU.accumSizeSelect === BIT_SELECT.BIT_8) {
+					if(CPU.getEmulationFlag()  || CPU.accumSizeSelect === BIT_SELECT.BIT_8) {
 						CPU.memory.setROMProtectedByteAtLocation(bank, addr, CPU.getAccumulator());
 					} else {
 						CPU.memory.setROMProtectedWordAtLocation(bank, addr, CPU.getAccumulator());
@@ -421,6 +457,25 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//LDA dp - Load Accumulator from Memory
+		0xA5: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH
+			var addr = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, addr) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1);
+			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+				cycles += CPU.memory.getMemAccessCycleTime(CPU.pbr, addr);
+			}
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: 3,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadAccumulator(CPU.memory.getUnsignedValAtLocation(CPU.pbr, addr, CPU.getAccumulatorOrMemorySize()));
+				}
+			}
+		},
 		//LDA #const - Load Accumulator with const
 		0xA9: function() {
 			if (CPU.getAccumulatorSizeSelect() === BIT_SELECT.BIT_8) {
@@ -458,6 +513,35 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
 				func: function() {
 					CPU.dbr = (0xFF & CPU.popStack());
+				}
+			}
+		},
+		//LDA addr - Load Accumulator from Memory
+		0xAD: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH
+			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			var cycles = (Timing.FAST_CPU_CYCLE) + CPU.memory.getMemAccessCycleTime(CPU.pbr, addr) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1);
+			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+				cycles += CPU.memory.getMemAccessCycleTime(CPU.pbr, addr);
+			}
+			return {
+				size: 3,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadAccumulator(CPU.memory.getUnsignedValAtLocation(CPU.pbr, addr, CPU.getAccumulatorOrMemorySize()));
+				}
+			}
+		},
+		//BCS - Branch if carry set
+		0xB0: function() {
+			var branchInfo = getRelativeBranchInformation(CPU, CPU.getCarryFlagStatus(), false);
+			return {
+				size: 2,
+				CPUCycleCount: branchInfo.cycles,
+				func: function() {
+					if (CPU.getCarryFlagStatus()) {
+						CPU.setPC(branchInfo.addr);
+					}
 				}
 			}
 		},
@@ -512,16 +596,13 @@ var getInstructionMap = function(CPU) {
 		},
 		//BNE - Branch if not equal
 		0xD0: function() {
-			var branchOffset = CPU.memory.getSignedByteAtLocation(CPU.pbr, CPU.getPC() + 1);
-			var addr = branchOffset + CPU.getPC() + 2;
-			var crossedPageBoundary = (CPU.getPC() & 0xFF00) != (addr & 0xFF00);
-			var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.getPC()) << 1) + CPU.getZeroFlag() ? 0 : (Timing.FAST_CPU_CYCLE + (CPU.isEmulationFlag() && crossedPageBoundary ? Timing.FAST_CPU_CYCLE : 0));
+			var branchInfo = getRelativeBranchInformation(CPU, !CPU.getZeroFlag(), false);
 			return {
 				size: 2,
-				CPUCycleCount: cycles,
+				CPUCycleCount: branchInfo.cycles,
 				func: function() {
 					if (!CPU.getZeroFlag()) {
-						CPU.setPC(addr);
+						CPU.setPC(branchInfo.addr);
 					}
 				}
 			}
@@ -533,6 +614,17 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
 				func: function() {
 					CPU.setDecimalMode(false);
+				}
+			}
+		},
+		//PHX - Push X Index Register
+		0xDA: function() {
+				return {
+				size: 1,
+				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + 
+									(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? Timing.FAST_CPU_CYCLE : 0), //3 CPU cycles (+1 w/ 16-bit index registers)
+				func: function() {
+					CPU.pushStack(CPU.getAccumulator());
 				}
 			}
 		},
@@ -607,7 +699,6 @@ var getInstructionMap = function(CPU) {
 				size: 3,
 				CPUCycleCount: cycles,
 				func: function() {
-					//TODO: Finish this instruction
 					var newVal = CPU.memory.getUnsignedValAtLocation(CPU.pbr, addr, CPU.getAccumulatorOrMemorySize()) + 1;
 					CPU.updateZeroFlag(newVal);
 					CPU.updateNegativeFlag(newVal, CPU.getAccumulatorOrMemorySize());
@@ -617,16 +708,13 @@ var getInstructionMap = function(CPU) {
 		},
 		//BEQ - Branch if equal
 		0xF0: function() {
-			var branchOffset = CPU.memory.getSignedByteAtLocation(CPU.pbr, CPU.getPC() + 1);
-			var addr = branchOffset + CPU.getPC() + 2;
-			var crossedPageBoundary = (CPU.getPC() & 0xFF00) != (addr & 0xFF00);
-			var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.getPC()) << 1) + !CPU.getZeroFlag() ? 0 : (Timing.FAST_CPU_CYCLE + (CPU.isEmulationFlag() && crossedPageBoundary ? Timing.FAST_CPU_CYCLE : 0));
+			var branchInfo = getRelativeBranchInformation(CPU, CPU.getZeroFlag(), false);
 			return {
 				size: 2,
-				CPUCycleCount: cycles,
+				CPUCycleCount: branchInfo.cycles,
 				func: function() {
 					if (CPU.getZeroFlag()) {
-						CPU.setPC(addr);
+						CPU.setPC(branchInfo.addr);
 					}
 				}
 			}
@@ -637,7 +725,7 @@ var getInstructionMap = function(CPU) {
 				size: 1,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1),
 				func: function() {
-					var temp = CPU.isEmulationFlag;
+					var temp = CPU.getEmulationFlag();
 					CPU.setEmulationFlag(CPU.carry);
 					CPU.setCarryFlag(temp);
 				}
