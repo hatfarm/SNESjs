@@ -76,7 +76,7 @@ var getRelativeBranchInformation = function(CPU, isBranchTaken, isBranchAlways) 
 var getInstructionMap = function(CPU) {
 	return {
 		//BRK -- Break
-		0x0: function() {
+		0x00: function() {
 				return {
 					size: 2,
 					CPUCycleCount: (Timing.FAST_CPU_CYCLE << 2) + (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
@@ -84,6 +84,24 @@ var getInstructionMap = function(CPU) {
 						//There's no extra processing, but this skips the next opcode, and also uses an extra cycle if not in emulation mode
 					},
 				}
+		},
+		//ORA (_dp, _X) - OR Accumulator with Memory
+		0x01: function() {
+			var accSize = CPU.getAccumulatorOrMemorySize();
+			var addressLocation = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1), CPU.getXIndex());
+			var orVal = CPU.memory.getUnsignedValAtLocation(0, addressLocation, accSize);
+			var cycles = (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(0, addressLocation) << accSize === BIT_SELECT.BIT_8 ? 0 : 1);
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadAccumulator(CPU.getAccumulator() | orVal);
+				}
+			}
 		},
 		//CLC -- Clear Carry
 		0x18: function() {
@@ -148,6 +166,24 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //3 CPU cycles
 				func: function() {
 					CPU.setPC(addr);
+				}
+			}
+		},
+		//EOR (_dp_) - Exclusive-OR Accumulator with Memory
+		0x52: function() {
+			var accSize = CPU.getAccumulatorOrMemorySize();
+			var addressLocation = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var xorVal = CPU.memory.getUnsignedValAtLocation(0, addressLocation, accSize);
+			var cycles = (Timing.FAST_CPU_CYCLE << 1) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(0, addressLocation) << accSize === BIT_SELECT.BIT_8 ? 0 : 1);
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadAccumulator(CPU.getAccumulator() ^ xorVal);
 				}
 			}
 		},
