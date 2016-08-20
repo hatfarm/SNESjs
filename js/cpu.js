@@ -325,6 +325,14 @@ CPU.prototype.setOverflowFlag = function(val) {
 	this.logger.log("Overflow Flag: " + this.overflow.toString(16));
 };
 
+CPU.prototype.getOverflowFlag = function() {
+	return this.overflow;
+};
+
+CPU.prototype.getNegativeFlag = function() {
+	return this.negative;
+};
+
 CPU.prototype.setNegativeFlag = function(val) {
 	this.negative = val;
 	this.logger.log("Negative Flag: " + this.negative.toString(16));
@@ -374,6 +382,10 @@ CPU.prototype.setIRQDisabledFlag = function(val) {
 	this.IRQDisabled = val;
 	this.logger.log("IRQ Disabled Flag: " + this.IRQDisabled);
 };
+
+CPU.prototype.getIRQDisabledFlag = function() {
+	return this.IRQDisabled;
+}
 
 CPU.prototype.setZeroFlag = function(val) {
 	this.isZero = val;

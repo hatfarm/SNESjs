@@ -103,6 +103,25 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//PHP - Push Processor Status Register
+		0x08: function() {
+				return {
+				size: 1,
+				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //3 CPU cycles
+				func: function() {
+					var pushVal = 0;
+					if (CPU.getCarryFlagStatus()) pushVal |= CARRY_BITMASK;
+					if (CPU.getZeroFlag()) pushVal |= ZERO_BITMASK;
+					if (CPU.getIRQDisabledFlag()) pushVal |= IRQ_DISABLE_BITMASK;
+					if (CPU.getDecimalMode()) pushVal |= DECIMAL_MODE_BITMASK;
+					if (CPU.getIndexRegisterSize()) pushVal |= INDEX_REG_SELECT_BITMASK;
+					if (CPU.getAccumulatorSizeSelect()) pushVal |= MEM_ACC_SELECT_BITMASK;
+					if (CPU.getOverflowFlag()) pushVal |= OVERFLOW_BITMASK;
+					if (CPU.getNegativeFlag()) pushVal |= NEGATIVE_BITMASK;
+					CPU.pushStack(pushVal);
+				}
+			}
+		},
 		//CLC -- Clear Carry
 		0x18: function() {
 			return {
@@ -138,6 +157,18 @@ var getInstructionMap = function(CPU) {
 					}
 				}
 		},
+		//JSL long - Jump to Subroutine
+		0x22: function() {
+				var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+				var bank = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 3);
+				return {
+					size: 4,
+					CPUCycleCount: (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 2) + (Timing.FAST_CPU_CYCLE << 2),
+					func: function() {
+						CPU.jumpToSubroutine(addr, bank);
+					}
+				}
+		},
 		//PHA - Push Accumulator
 		0x48: function() {
 				return {
@@ -159,7 +190,7 @@ var getInstructionMap = function(CPU) {
 			}
 		},
 		//JMP addr - Jump to address (immediate)
-		0x4c: function() {
+		0x4C: function() {
 			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
 			return {
 				size: 3,
