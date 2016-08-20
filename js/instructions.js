@@ -505,6 +505,8 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
 				func: function() {
 					CPU.setYIndex(CPU.getXIndex());
+					CPU.updateZeroFlag(CPU.getXIndex());
+					CPU.updateNegativeFlag(CPU.getXIndex(), CPU.getIndexRegisterSize());
 				}
 			}
 		},
