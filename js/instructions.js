@@ -71,7 +71,7 @@ var getRelativeBranchInformation = function(CPU, isBranchTaken, isBranchAlways) 
 		addr: addr,
 		cycles: cycles,
 	}
-}
+};
 
 var getInstructionMap = function(CPU) {
 	return {
@@ -290,6 +290,33 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: branchInfo.cycles,
 				func: function() {
 					CPU.setPC(branchInfo.addr);
+				}
+			}
+		},
+		//STA (_dp, _X) - Store Accumulator to Memory
+		0x81: function() {
+			var addr = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1), CPU.getXIndex());
+			var cycles = (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(0, addr) << CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16 ? 1 : 0);
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.memory.setROMProtectedValAtLocation(0, addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
+				}
+			}
+		},
+		//BRA nearlabel - Branch Always
+		0x82: function() {
+			var branchOffset = CPU.memory.getInt16AtLocation(CPU.pbr, CPU.getPC() + 1);
+			var addr = branchOffset + CPU.getPC() + 2;
+			return {
+				size: 3,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					CPU.setPC(addr);
 				}
 			}
 		},

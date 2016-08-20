@@ -31,7 +31,9 @@ The way memory is address is 0xBB:AAAA where BB is a bank, and then AAAA is the 
 There are 16MB addressable by the system.*/
 var Memory = function() {
 	this.banks = [];
-}
+};
+
+var IS_LITTLE_ENDIAN = true;
 
 //This is a private function that will tell us if we're trying to write to ROM, which should only be allowed during initialization 
 var isMemoryAddressROM = function(bank, address) {
@@ -96,9 +98,12 @@ Memory.prototype.getSignedByteAtLocation = function(bank, address) {
 	return new DataView(this.banks[bank].buffer).getInt8(address);
 };
 
+Memory.prototype.getInt16AtLocation = function(bank, address) {
+	return new DataView(this.banks[bank].buffer).getInt16(address, IS_LITTLE_ENDIAN);
+};
+
 Memory.prototype.getUInt16AtLocation = function(bank, address) {
-	//Since the SNES is little endian, we pass the msb as the second byte.
-	return Utils.get2ByteValue(this.banks[bank][address+1], this.banks[bank][address]);
+	return new DataView(this.banks[bank].buffer).getUint16(address, IS_LITTLE_ENDIAN);
 }
 
 Memory.prototype.setROMProtectedByteAtLocation = function(bank, address, value) {
