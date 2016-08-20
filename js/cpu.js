@@ -108,7 +108,11 @@ var CPU = function() {
 		return this.getAccumulatorSizeSelect() || this.getEmulationFlag();
 	};
 	
-	this.getStackPointer = function(val) {
+	this.getStackRelativeLocation = function(operand) {
+		return stack.getPointer() + operand;
+	}
+	
+	this.getStackPointer = function() {
 		return stack.getPointer();
 	};
 	

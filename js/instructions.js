@@ -293,6 +293,17 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//STA sr,S - Store Accumulator to Memory
+		0x83: function() {
+			var addr = CPU.getStackRelativeLocation(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			return {
+				size: 2,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(0, addr) << CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16 ? 1 : 0),
+				func: function() {
+					CPU.memory.setROMProtectedValAtLocation(0, addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
+				}
+			}
+		},
 		//STY dp - Store Index Register Y to Memory
 		0x84: function() {
 			var addr = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
