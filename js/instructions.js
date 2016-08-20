@@ -498,6 +498,16 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//TXY - Transfer X Index to Y Index
+		0x9B: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					CPU.setYIndex(CPU.getXIndex());
+				}
+			}
+		},
 		//STZ addr - Store Zero to Memory
 		0x9C: function() {
 			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
