@@ -122,6 +122,25 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//ASL - Accumulator Shift Left
+		0x0A: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_8) {
+						var carryMask =  0x08;
+						var LSMask = 0x0F;
+					} else {
+						var carryMask =  0x80;
+						var LSMask = 0x0FF;
+					}
+					CPU.setCarryFlag(!!(CPU.getAccumulator() & carryMask));
+					CPU.loadAccumulator((CPU.getAccumulator() << 1) & LSMask);
+					
+				}
+			}
+		},
 		//CLC -- Clear Carry
 		0x18: function() {
 			return {
@@ -689,6 +708,24 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//LDA long,X - Load Accumulator from Memory
+		0xBF: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH,BANK
+			var bank = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 3);
+			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			var cycles = (Timing.FAST_CPU_CYCLE) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 2);
+			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: 4,
+				CPUCycleCount: cycles,
+				func: function() {
+					var val = CPU.memory.getUInt16AtLocation(bank, CPU.getXIndex() + addr);
+					CPU.loadAccumulator(val);
+				}
+			}
+		},
 		//REP - Reset Processor Status Bits
 		0xC2: function() {
 			var flagMask = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
@@ -894,7 +931,7 @@ var getInstructionMap = function(CPU) {
 				size: 4,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 2),
 				func: function() {
-					var val = CPU.getMFlag === CPU.memory.getUInt16AtLocation(bank, CPU.getXIndex() + addr);
+					var val = CPU.memory.getUInt16AtLocation(bank, CPU.getXIndex() + addr);
 					CPU.doSubtraction(val);
 				}
 			}
