@@ -150,10 +150,7 @@ var getInstructionMap = function(CPU) {
 					size: 2,
 					CPUCycleCount: (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(CPU.dbr, dpMath) << 1) + (Timing.FAST_CPU_CYCLE << 1),
 					func: function() {
-						var memResult = CPU.memory.getByteAtLocation(CPU.dbr, dpMath);
-						CPU.setAccumulator(CPU.getAccumulator() & memResult.val);
-						CPU.updateNegativeFlag(CPU.getAccumulator(), CPU.accumSizeSelect);
-						CPU.updateZeroFlag(CPU.getAccumulator());
+						CPU.loadAccumulator(CPU.memory.getByteAtLocation(CPU.dbr, dpMath) & CPU.getAccumulator());
 					}
 				}
 		},
@@ -168,6 +165,25 @@ var getInstructionMap = function(CPU) {
 						CPU.jumpToSubroutine(addr, bank);
 					}
 				}
+		},
+		//AND #const - AND accumulator with constant
+		0x29: function() {
+			var size = 2;
+			var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE;
+			if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_8) {
+				var constVal = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1);
+			} else {
+				size++;
+				cycles += CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc)
+				var constVal = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			}
+			return {
+				size: size,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadAccumulator(CPU.getAccumulator() & constVal);
+				}
+			}
 		},
 		//PHA - Push Accumulator
 		0x48: function() {
@@ -783,6 +799,28 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//INC dp - Increment value from Memory
+		0xE6: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH
+			var addr = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var cycles = (Timing.FAST_CPU_CYCLE) + (CPU.memory.getMemAccessCycleTime(0, addr) << 1) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1);
+			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+				cycles += (CPU.memory.getMemAccessCycleTime(0, addr) << 1);
+			}
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					var newVal = CPU.memory.getUnsignedValAtLocation(0, addr, CPU.getAccumulatorOrMemorySize()) + 1;
+					CPU.updateZeroFlag(newVal);
+					CPU.updateNegativeFlag(newVal, CPU.getAccumulatorOrMemorySize());
+					CPU.memory.setROMProtectedValAtLocation(0, addr, newVal, CPU.getAccumulatorOrMemorySize());
+				}
+			}
+		},
 		//INX - Increment X Register
 		0xE8: function() {
 			return {
@@ -807,10 +845,9 @@ var getInstructionMap = function(CPU) {
 		0xEE: function() {
 			//This is little endian, so the byte structure is ADDRL,ADDRH
 			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			var cycles = (Timing.FAST_CPU_CYCLE) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 2);
 			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
-				var cycles = (Timing.FAST_CPU_CYCLE) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 2) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1);
-			} else {
-				var cycles = (Timing.FAST_CPU_CYCLE) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 2);
+				cycles += (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1);
 			}
 			return {
 				size: 3,
