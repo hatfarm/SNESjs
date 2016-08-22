@@ -64,10 +64,6 @@ var CPU = function() {
 	this.pbr = 0;//Program Bank register, the memory bank address of instruction fetches
 	this.dbr = 0; //Data bank register, the default bank for memory transfers
 	var dpr = 0; //Direct Page register, holds the memory bank address of the data the CPU is accessing during direct addressing instructions
-
-	//Index registers, general purpose
-	var indexX = 0;
-	var indexY = 0;
 	
 	//Arrays in JS have stack functionality built in.
 	var stack = new Stack();
@@ -79,9 +75,15 @@ var CPU = function() {
 	this.logger = new Logger();
 	
 	this.init = function(resetPC, memory) {
-		this.setPC(resetPC);
+		if(resetPC === 0 || resetPC) {
+			this.setPC(resetPC);
+		} else {
+			this.logger.log("PC initialized to default of 0xFFFC");
+			this.setPC(0xFFFC);
+		}
 		this.instructionList = new Instructions(this);
 		this.memory = memory;
+		memory.setLogger(this.logger);
 		stack.init(memory);
 	};
 	
@@ -162,7 +164,6 @@ var CPU = function() {
 	
 	this.setEmulationFlag = function(val) {
 		this.isEmulationFlag = val;
-		this.logger.log("Emulation Flag: " + this.isEmulationFlag);
 	}
 	
 	this.getAccumulatorBufferOffset = function() {
@@ -178,21 +179,44 @@ var CPU = function() {
 	}
 	
 	this.getXIndex = function() {
-		return indexX;
+		return this.getIndexRegisterSelct() ? this.getXIndex8() : this.getXIndex16();
 	};
 	
+	this.getXIndex8 = function() {
+		return registerDV.getUint8(this.getXIndexBufferOffset())
+	}
+	
+	this.getXIndex16 = function() {
+		return registerDV.getUint16(this.getXIndexBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+	}
+	
 	this.setXIndex = function(val) {
-		this.logger.log("X Index: " + val.toString(16));
-		indexX = val;
+		//We're always going to set it with 32 bits, but when we read it, it'll only be the size that we're expecting
+		if(val < 0) {
+			registerDV.setInt32(this.getXIndexBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		} else {
+			registerDV.setUint32(this.getXIndexBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		}
 	};
 	
 	this.getYIndex = function() {
-		return indexY;
+		return this.getIndexRegisterSelct() ? this.getYIndex8() : this.getYIndex16();
 	};
 	
+	this.getYIndex8 = function() {
+		return registerDV.getUint8(this.getYIndexBufferOffset())
+	}
+	
+	this.getYIndex16 = function() {
+		return registerDV.getUint16(this.getYIndexBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+	}
+	
 	this.setYIndex = function(val) {
-		this.logger.log("Y Index: " + val.toString(16));
-		indexY = val;
+		if(val < 0) {
+			registerDV.setInt32(this.getYIndexBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		} else {
+			registerDV.setUint32(this.getYIndexBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		}
 	};
 	
 	this.getAccumulator = function() {
@@ -220,7 +244,6 @@ var CPU = function() {
 	};
 	
 	this.setAccumulator = function(val) {
-		this.logger.log("Accumulator: 0x" + val.toString(16));
 		//We're always going to set it with 32 bits, but when we read it, it'll only be the size that we're expecting
 		if(val < 0) {
 			registerDV.setInt32(this.getAccumulatorBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
@@ -278,7 +301,6 @@ var CPU = function() {
 	};
 	
 	this.setPBR = function(val) {
-		this.logger.log("Program Counter Bank Register: " + val.toString(16));
 		this.pbr = val;
 	};
 	
@@ -291,28 +313,48 @@ CPU.prototype.getPC = function(){
 	return this.pc;
 }
 
-
+CPU.prototype.logInstruction = function(instruction) {
+	var instructionString = "$" + utils.zeroFill(this.pbr, 2, 16) + "/" + utils.zeroFill(this.pc, 2, 16);
+	var i = 0;
+	for (i = 0; i < 4; i++) {
+		if (i < instruction.size) {
+			instructionString += " " + utils.zeroFill(this.memory.getByteAtLocation(this.pbr, this.pc + i), 2, 16);
+		} else {
+			instructionString += "   ";
+		}
+	}
+	instructionString += "  ";
+	instructionString += "    ";
+	instructionString += "    ";
+	instructionString += "    ";
+	instructionString += "    ";
+	instructionString += "      ";
+	instructionString += "A:" + utils.zeroFill(this.getAccumulator16(), 4, 16) + " ";
+	instructionString += "X:" + utils.zeroFill(this.getXIndex(), 4, 16) + " ";
+	instructionString += "Y:" + utils.zeroFill(this.getYIndex(), 4, 16) + " ";
+	instructionString += "P:" + `${this.getEmulationFlag() ? "E" : "e"}` + `${this.getNegativeFlag() ? "N" : "n"}` + `${this.getOverflowFlag() ? "V" : "v"}` + `${this.getAccumulatorOrMemorySize() ? "M" : "m"}`;
+	instructionString += `${this.getIndexRegisterSize() ? "X" : "x"}` + `${this.getDecimalMode() ? "D" : "d"}` + `${this.getIRQDisabledFlag() ? "I" : "i"}` + `${this.getZeroFlag() ? "Z" : "z"}` + `${this.getCarryFlagStatus() ? "C" : "c"}`;
+	return instructionString;
+}
 
 CPU.prototype.execute = function(cycles) {
 	//We gain back our excess cycles this loop.
 	var cyclesLeft = cycles + this.excessCycleTime;
 	this.excessCycleTime = 0;
 	while(cyclesLeft > 0) {
-		this.logger.log("============================");
 		var instructionVal = this.memory.getByteAtLocation(this.pbr, this.pc);
-		this.logger.log("PC: 0x" + this.pc.toString(16) + " -- Instruction: 0x" + instructionVal.toString(16));
 		var instruction = this.instructionList[instructionVal]();
+		var instructionString = this.logInstruction(instruction);
 		if(instruction.CPUCycleCount <= cyclesLeft) {
 			this.incPC(instruction.size);
 			cyclesLeft -= instruction.CPUCycleCount;
 			//This needs to be last, because we have to update the PC in some instructions
 			instruction.func();
+			this.logger.log(instructionString);
 		} else {
-			this.logger.log("Unable to complete in cycles left.");
 			this.excessCycleTime = cyclesLeft;
 			cyclesLeft = 0;
 		}
-		this.logger.log("============================");
 	}
 }
 
@@ -322,7 +364,6 @@ CPU.prototype.incPC = function(pc_inc) {
 
 CPU.prototype.setOverflowFlag = function(val) {
 	this.overflow = val;
-	this.logger.log("Overflow Flag: " + this.overflow.toString(16));
 };
 
 CPU.prototype.getOverflowFlag = function() {
@@ -335,7 +376,6 @@ CPU.prototype.getNegativeFlag = function() {
 
 CPU.prototype.setNegativeFlag = function(val) {
 	this.negative = val;
-	this.logger.log("Negative Flag: " + this.negative.toString(16));
 };
 
 CPU.prototype.updateNegativeFlag = function(val, sizeSelector) {
@@ -350,23 +390,18 @@ CPU.prototype.getDecimalMode = function() {
 
 CPU.prototype.setDecimalMode = function(val) {
 	this.decimalMode = val;
-	//this.logger.log("Decimal Mode: " + this.decimalMode === DECIMAL_MODES.DECIMAL ? "DECIMAL" : "BINARY");
-	this.logger.log(`Decimal Mode: ${this.decimalMode === DECIMAL_MODES.DECIMAL ? "DECIMAL" : "BINARY"}`);
 };
 
 CPU.prototype.setIndexRegisterSelect = function(val) {
 	this.indexRegisterSelect = val;
-	this.logger.log(`Index Register Size: ${this.accumSizeSelect === BIT_SELECT.BIT_16 ? "16 bits" : "8 bits"}`);
 }
 
 CPU.prototype.setMemoryAccumulatorSelect = function(val) {
 	this.accumSizeSelect = val;
-	this.logger.log(`Memory/Accumulator Size: ${this.accumSizeSelect === BIT_SELECT.BIT_16 ? "16 bits" : "8 bits"}`);
 };
 
 CPU.prototype.setCarryFlag = function(val) {
 	this.carry = val;
-	this.logger.log("Carry Flag: " + this.carry.toString(16));
 };
 
 CPU.prototype.updateAdditionCarryFlag = function(val, registerSizeSelect) {
@@ -380,7 +415,6 @@ CPU.prototype.updateSubtractionCarryFlag = function(val) {
 
 CPU.prototype.setIRQDisabledFlag = function(val) {
 	this.IRQDisabled = val;
-	this.logger.log("IRQ Disabled Flag: " + this.IRQDisabled);
 };
 
 CPU.prototype.getIRQDisabledFlag = function() {
@@ -389,7 +423,6 @@ CPU.prototype.getIRQDisabledFlag = function() {
 
 CPU.prototype.setZeroFlag = function(val) {
 	this.isZero = val;
-	this.logger.log("Zero Flag: " + this.isZero);
 };
 
 CPU.prototype.getZeroFlag = function() {
@@ -414,7 +447,6 @@ CPU.prototype.updateOverflowFlag = function(val) {
 
 CPU.prototype.setPC = function(val) {
 	this.pc = val;
-	this.logger.log("Program Counter: " + this.pc.toString(16));
 }
 
 module.exports = CPU;

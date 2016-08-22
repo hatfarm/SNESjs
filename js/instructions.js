@@ -337,6 +337,17 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//JMP addr - Jump to address (absolute indirect)
+		0x6C: function() {
+			var addrLocation = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			return {
+				size: 3,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(0, addrLocation) << 1),
+				func: function() {
+					CPU.setPC(CPU.memory.getUInt16AtLocation(CPU.pbr, addrLocation));
+				}
+			}
+		},
 		
 		//SEI - Set Interrupt Disable Flag
 		0x78: function() {
@@ -345,6 +356,24 @@ var getInstructionMap = function(CPU) {
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1),
 				func: function() {
 					CPU.setIRQDisabledFlag(true);
+				}
+			}
+		},
+		//ADC long,X - Add with Carry (Absolute Long Indexed,X)
+		0x7F: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH,BANK
+			var bank = CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 3);
+			var addr = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			var cycles = (Timing.FAST_CPU_CYCLE) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 2);
+			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: 4,
+				CPUCycleCount: cycles,
+				func: function() {
+					var val = CPU.memory.getUInt16AtLocation(bank, CPU.getXIndex() + addr);
+					CPU.doAddition(val);
 				}
 			}
 		},
@@ -377,7 +406,7 @@ var getInstructionMap = function(CPU) {
 		//BRA nearlabel - Branch Always
 		0x82: function() {
 			var branchOffset = CPU.memory.getInt16AtLocation(CPU.pbr, CPU.getPC() + 1);
-			var addr = branchOffset + CPU.getPC() + 2;
+			var addr = branchOffset + CPU.getPC() + 3;
 			return {
 				size: 3,
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc),
@@ -621,7 +650,7 @@ var getInstructionMap = function(CPU) {
 				cycles += Timing.FAST_CPU_CYCLE;
 			}
 			return {
-				size: 3,
+				size: 2,
 				CPUCycleCount: cycles,
 				func: function() {
 					CPU.loadAccumulator(CPU.memory.getUnsignedValAtLocation(CPU.pbr, addr, CPU.getAccumulatorOrMemorySize()));
@@ -940,12 +969,13 @@ var getInstructionMap = function(CPU) {
 };
 
 //We need to fill in something here, we want it to break when we encounter an unhandled instruction, so this is how we do that.
-var unsupportedInstruction = function(instructionNumber) {
+var unsupportedInstruction = function(instructionNumber, CPU) {
 	return function() {
 		return {
 			size: 0,
 			CPUCycleCount: 0,
 			func: function() {
+				CPU.logger.printLog();
 				throw "Invalid function 0x" + instructionNumber.toString(16) + "!";
 			}
 		}
@@ -961,7 +991,7 @@ var getInstructionArray = function(CPU) {
 		if (instructions.hasOwnProperty(i)) {
 			returnArray.push(instructions[i]);
 		} else {
-			returnArray.push(new unsupportedInstruction(i));
+			returnArray.push(new unsupportedInstruction(i, CPU));
 		}
 	}
 	

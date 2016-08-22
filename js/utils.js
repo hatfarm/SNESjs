@@ -29,6 +29,12 @@ var get2ByteValue = function(MSB, LSB) {
 	return (MSB << 8) | LSB;
 };
 
+var zeroFill = function(number, size, radix) {
+  number = number.toString(radix);
+  while (number.length < size) number = "0" + number;
+  return number.toUpperCase();
+}
+
 var get3LittleEndianByteValue = function(Byte1, Byte2, Byte3) {
 	return (Byte2 << 16)(Byte2 << 8) | Byte1;
 };
@@ -89,4 +95,5 @@ module.exports = {
 	BIT_SELECT: BIT_SELECT,
 	getMSBFromWord: getMSBFromWord,
 	getLSBFromWord: getLSBFromWord,
+	zeroFill: zeroFill,
 }
