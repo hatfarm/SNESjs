@@ -103,6 +103,24 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//ORA (dp) - OR Accumulator with Memory
+		0x05: function() {
+			var accSize = CPU.getAccumulatorOrMemorySize();
+			var addressLocation = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var orVal = CPU.memory.getUnsignedValAtLocation(0, addressLocation, accSize);
+			var cycles = (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (CPU.memory.getMemAccessCycleTime(0, addressLocation) << accSize === BIT_SELECT.BIT_8 ? 0 : 1);
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadAccumulator(CPU.getAccumulator() | orVal);
+				}
+			}
+		},
 		//PHP - Push Processor Status Register
 		0x08: function() {
 				return {
@@ -206,11 +224,18 @@ var getInstructionMap = function(CPU) {
 		},
 		//PHA - Push Accumulator
 		0x48: function() {
-				return {
+			return {
 				size: 1,
-				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc), //3 CPU cycles
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (CPU.memory.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
-					CPU.pushStack(CPU.getAccumulator());
+					if(CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+						var HI = (0xFF00 & CPU.getAccumulator16()) >> 8;
+						var LO = 0x00FF & CPU.getAccumulator16();
+						CPU.pushStack(HI);
+						CPU.pushStack(LO);
+					} else {
+						CPU.pushStack(CPU.getAccumulator8());
+					}
 				}
 			}
 		},
@@ -657,6 +682,24 @@ var getInstructionMap = function(CPU) {
 				}
 			}
 		},
+		//LDX dp - Load Index Register X from Memory
+		0xA6: function() {
+			var addr = CPU.getDirectPageValue(CPU.memory.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var cycles = CPU.memory.getMemAccessCycleTime(CPU.pbr, addr) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1);
+			if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
+				cycles += CPU.memory.getMemAccessCycleTime(CPU.pbr, addr);
+			}
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadX(CPU.memory.getUnsignedValAtLocation(CPU.pbr, addr, CPU.getIndexRegisterSize()));
+				}
+			}
+		},
 		//LDA #const - Load Accumulator with const
 		0xA9: function() {
 			if (CPU.getAccumulatorSizeSelect() === BIT_SELECT.BIT_8) {
@@ -693,7 +736,7 @@ var getInstructionMap = function(CPU) {
 				size: 1,
 				CPUCycleCount: CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
 				func: function() {
-					CPU.dbr = (0xFF & CPU.popStack());
+					CPU.dbr = (CPU.popStack());
 				}
 			}
 		},
@@ -818,12 +861,31 @@ var getInstructionMap = function(CPU) {
 		},
 		//PHX - Push X Index Register
 		0xDA: function() {
-				return {
+			return {
 				size: 1,
-				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + 
-									(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? Timing.FAST_CPU_CYCLE : 0), //3 CPU cycles (+1 w/ 16-bit index registers)
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (CPU.memory.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
-					CPU.pushStack(CPU.getAccumulator());
+					if(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
+						var HI = (0xFF00 & CPU.getXIndex16()) >> 8;
+						var LO = 0x00FF & CPU.getXIndex16();
+						CPU.pushStack(HI);
+						CPU.pushStack(LO);
+					} else {
+						CPU.pushStack(CPU.getXIndex8());
+					}
+				}
+			}
+		},
+		//JMP/JML addr - Jump to address (Absolute Indirect Long)
+		0xDC: function() {
+			var addrLocation = CPU.memory.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+			return {
+				size: 3,
+				CPUCycleCount: CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + CPU.memory.getMemAccessCycleTime(0, addrLocation) + (CPU.memory.getMemAccessCycleTime(0, addrLocation) << 1),
+				func: function() {
+					var addr = CPU.memory.getUInt16AtLocation(0, addrLocation);
+					var bank = CPU.memory.getByteAtLocation(0, addrLocation + 2);
+					CPU.setPC(CPU.memory.getUInt16AtLocation(bank, addr));
 				}
 			}
 		},
@@ -936,6 +998,23 @@ var getInstructionMap = function(CPU) {
 					if (CPU.getZeroFlag()) {
 						CPU.setPC(branchInfo.addr);
 					}
+				}
+			}
+		},
+		//PLX - Pull Index Register X from Stack
+		0xFA: function() {
+			return {
+				size: 1,
+				CPUCycleCount: CPU.memory.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (CPU.memory.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
+				func: function() {
+					if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
+						var LSB = CPU.popStack();
+						var MSB = CPU.popStack();
+						var val = utils.get2ByteValue(MSB, LSB);
+					} else {
+						var val = CPU.popStack();
+					}
+					CPU.loadX(val);
 				}
 			}
 		},
