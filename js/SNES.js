@@ -62,13 +62,15 @@ var SNESEmu = function(canvas, romContent) {
 	
 	function frame() {
 		if (_this.keepRunning) {
-			for(var i = 0; i < 262; i++) {
-				if (!_this.keepRunning) {
+			//for(var i = 0; i < 262; i++) {
+				/*if (!_this.keepRunning) {
 					break;
-				}
-				update(1324);
+				}*/
+				//update(1324);
+				//Using this value, we can't get pixel perfect emulation, but this gives us decent performance and should be decent image similarity.
+				update(346884); //This number is (262 scanlines * 1324 ((1364 - 40 paused  cycles)/scanline)) - 4 cycles skipped on scanline $f0
 				renderAudio();
-			}
+			//}
 			render();
 		}
 		requestAnimationFrame(frame); // request the next frame
