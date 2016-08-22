@@ -81,7 +81,7 @@ var CPU = function() {
 			this.logger.log("PC initialized to default of 0xFFFC");
 			this.setPC(0xFFFC);
 		}
-		this.instructionList = new Instructions(this);
+		this.instructionList = new Instructions(this, memory);
 		this.memory = memory;
 		memory.setLogger(this.logger);
 		stack.init(memory);
