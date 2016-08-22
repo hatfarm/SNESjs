@@ -314,6 +314,10 @@ CPU.prototype.getPC = function(){
 }
 
 CPU.prototype.logInstruction = function(instruction) {
+	if (!this.logger.debug) {
+		return "";
+	}
+	
 	var instructionString = "$" + utils.zeroFill(this.pbr, 2, 16) + "/" + utils.zeroFill(this.pc, 2, 16);
 	var i = 0;
 	for (i = 0; i < 4; i++) {
