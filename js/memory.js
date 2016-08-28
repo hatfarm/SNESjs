@@ -113,7 +113,7 @@ Memory.prototype.getUInt16AtLocation = function(bank, address) {
 Memory.prototype.setROMProtectedByteAtLocation = function(bank, address, value) {
 	if(isMemoryAddressROM(bank, address)) {
 		this.logger.printLog();
-		throw "Attempted write to ROM Address! Bank:" + bank.toString(16) + " Address:" + address.toString(16);
+		throw new Error("Attempted write to ROM Address! Bank:" + bank.toString(16) + " Address:" + address.toString(16));
 	} else {
 		this.banks[bank][address] = value;
 	}
@@ -130,7 +130,7 @@ Memory.prototype.setROMProtectedValAtLocation = function(bank, address, value, i
 Memory.prototype.setROMProtectedWordAtLocation = function(bank, address, value) {
 	if(isMemoryAddressROM(bank, address)) {
 		this.logger.printLog();
-		throw "Attempted write to ROM Address! Bank:" + bank.toString(16) + " Address:" + address.toString(16);
+		throw new Error("Attempted write to ROM Address! Bank:" + bank.toString(16) + " Address:" + address.toString(16));
 	} else {
 		if(value >= 0x7FFF) {
 			new DataView(this.banks[bank].buffer).setUint16(address, value, true); //True is for little endian

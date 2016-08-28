@@ -33,8 +33,9 @@ var Stack = require('./stack.js');
 var DECIMAL_MODES = utils.DECIMAL_MODES;
 var BIT_SELECT = utils.BIT_SELECT;
 var ACCUMULATOR_BUFFER_OFFSET = 0;
-var INDEX_X_BUFFER_OFFSET = 4;
-var INDEX_Y_BUFFER_OFFSET = 8;
+var INDEX_X_BUFFER_OFFSET = 2;
+var INDEX_Y_BUFFER_OFFSET = 4;
+var HELPER_BUFFER_OFFSET = 6;	//A 32 bit buffer that we'll use to make some math easier
 var LITTLE_ENDIAN_TYPED_ARRAYS_FLAG = true;
 
 /*Most of the information here is from http://wiki.superfamicom.org/snes/show/65816+Reference*/
@@ -42,7 +43,7 @@ var LITTLE_ENDIAN_TYPED_ARRAYS_FLAG = true;
 var CPU = function() {
 	var _this = this;
 	
-	var buffer = new ArrayBuffer(12);
+	var buffer = new ArrayBuffer(10);
 	var registerDV = new DataView(buffer);
 	
 	var accumulator = 0;
@@ -191,11 +192,10 @@ var CPU = function() {
 	}
 	
 	this.setXIndex = function(val) {
-		//We're always going to set it with 32 bits, but when we read it, it'll only be the size that we're expecting
-		if(val < 0) {
-			registerDV.setInt32(this.getXIndexBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		if(this.getIndexRegisterSelct()) {
+			this.setRegisterDVValue8(this.getXIndexBufferOffset(), val);
 		} else {
-			registerDV.setUint32(this.getXIndexBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+			this.setRegisterDVValue16(this.getXIndexBufferOffset(), val);
 		}
 	};
 	
@@ -212,10 +212,10 @@ var CPU = function() {
 	}
 	
 	this.setYIndex = function(val) {
-		if(val < 0) {
-			registerDV.setInt32(this.getYIndexBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		if(this.getIndexRegisterSelct()) {
+			this.setRegisterDVValue8(this.getYIndexBufferOffset(), val);
 		} else {
-			registerDV.setUint32(this.getYIndexBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+			this.setRegisterDVValue16(this.getYIndexBufferOffset(), val);
 		}
 	};
 	
@@ -231,25 +231,48 @@ var CPU = function() {
 		return registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
 	}
 	
+	this.setAccumulator = function(val) {
+		if(this.getAccumulatorOrMemorySize()) {
+			this.setRegisterDVValue8(this.getAccumulatorBufferOffset(), val);
+		} else {
+			this.setRegisterDVValue16(this.getAccumulatorBufferOffset(), val);
+		}
+	};
+
+	this.setRegisterDVValue8 = function(bufferOffset, val) {
+		if (val < 0) {
+			registerDV.setInt8(bufferOffset, val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		} else {
+			registerDV.setUint8(bufferOffset, val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		}
+	};
+	
+	this.setRegisterDVValue16 = function(bufferOffset, val) {
+		if (val < 0) {
+			registerDV.setInt16(bufferOffset, val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		} else {
+			registerDV.setUint16(bufferOffset, val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		}
+	};
+	
+	this.setHelperBufferValue = function(val) {
+		if(val < 0) {
+			registerDV.setInt32(HELPER_BUFFER_OFFSET, val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		} else {
+			registerDV.setUint32(HELPER_BUFFER_OFFSET, val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+		}
+	};
+	
+	this.getHelperBufferValue = function() {
+		return registerDV.getUint32(HELPER_BUFFER_OFFSET, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+	}
+	
 	this.getCarryFlagStatus = function() {
 		return this.carry;
 	};
 	
 	this.getCarryVal = function() {
 		return this.getAccumulatorOrMemorySize() ? 0x100 : 0x10000;
-	};
-	
-	this.getFullAccumulator = function() {
-		return registerDV.getUint32(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
-	};
-	
-	this.setAccumulator = function(val) {
-		//We're always going to set it with 32 bits, but when we read it, it'll only be the size that we're expecting
-		if(val < 0) {
-			registerDV.setInt32(this.getAccumulatorBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
-		} else {
-			registerDV.setUint32(this.getAccumulatorBufferOffset(), val, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
-		}
 	};
 	
 	this.doSubtraction = function(val) {
@@ -259,7 +282,8 @@ var CPU = function() {
 	this.doAddition = function(val) {
 		var result = this.getAccumulator() + val;
 		this.setAccumulator(result);
-		var acc = this.getFullAccumulator();
+		this.setHelperBufferValue(result);
+		var acc = this.getHelperBufferValue();
 		this.updateCarryFlag(acc);
 		this.updateNegativeFlag(acc, this.getAccumulatorOrMemorySize());
 		this.updateZeroFlag(acc);
@@ -267,7 +291,7 @@ var CPU = function() {
 	};
 	
 	this.updateCarryFlag = function(val) {
-		this.setCarryFlag(val & this.getCarryVal !== 0);
+		this.setCarryFlag(val & this.getCarryVal() !== 0);
 	};
 	
 	this.doComparison = function(operandVal, registerVal, registerSizeSelect) {
@@ -318,7 +342,7 @@ CPU.prototype.logInstruction = function(instruction) {
 		return "";
 	}
 	
-	var instructionString = "$" + utils.zeroFill(this.pbr, 2, 16) + "/" + utils.zeroFill(this.pc, 2, 16);
+	var instructionString = "$" + utils.zeroFill(this.pbr, 2, 16) + "/" + utils.zeroFill(this.pc, 4, 16);
 	var i = 0;
 	for (i = 0; i < 4; i++) {
 		if (i < instruction.size) {
@@ -355,12 +379,20 @@ CPU.prototype.execute = function(cycles) {
 			//This needs to be last, because we have to update the PC in some instructions
 			instruction.func();
 			this.logger.log(instructionString);
+			this.checkBreakpoints();
 		} else {
 			this.excessCycleTime = cyclesLeft;
 			cyclesLeft = 0;
 		}
 	}
-}
+};
+
+CPU.prototype.checkBreakpoints = function() {
+	if (this.pc === 0x80C9) {
+		this.logger.printLog();
+		debugger;
+	}
+};
 
 CPU.prototype.incPC = function(pc_inc) {
 	this.setPC(this.pc + pc_inc);

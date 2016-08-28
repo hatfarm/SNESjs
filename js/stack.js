@@ -36,7 +36,7 @@ var Stack = function() {
 		memory.setROMProtectedByteAtLocation(0, pointer[0], val);
 		var newPointer = pointer[0] - POINTER_INCREMENT_DECREMENT_AMOUNT;
 		if (newPointer < 0) {
-			throw "Stack Pointer Decremented beyond 0x0000";
+			throw new Error("Stack Pointer Decremented beyond 0x0000");
 		}
 		this.setPointer(newPointer);
 	};
@@ -44,7 +44,7 @@ var Stack = function() {
 	this.pop = function() {
 		var newPointer = pointer[0] + POINTER_INCREMENT_DECREMENT_AMOUNT;
 		if (newPointer > 0xFFFF) {
-			throw "Stack Pointer Incremented beyond 0xFFFF";
+			throw new Error("Stack Pointer Incremented beyond 0xFFFF");
 		}
 		this.setPointer(newPointer);
 		return memory.getByteAtLocation(0, pointer[0]);

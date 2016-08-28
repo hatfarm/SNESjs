@@ -1055,7 +1055,7 @@ var unsupportedInstruction = function(instructionNumber, CPU) {
 			CPUCycleCount: 0,
 			func: function() {
 				CPU.logger.printLog();
-				throw "Invalid function 0x" + instructionNumber.toString(16) + "!";
+				throw new Error("Invalid function 0x" + instructionNumber.toString(16) + "!");
 			}
 		}
 	}
