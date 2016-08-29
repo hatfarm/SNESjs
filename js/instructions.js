@@ -222,6 +222,21 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//EOR sr,S - Exclusive-OR Accumulator with Memory
+		0x43: function() {
+			var accSize = CPU.getAccumulatorOrMemorySize();
+			var addr = CPU.getStackRelativeLocation(MEMORY.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var xorVal = MEMORY.getUnsignedValAtLocation(0, addr, accSize);
+			var cycles = Timing.FAST_CPU_CYCLE + (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (MEMORY.getMemAccessCycleTime(0, addr) << accSize === BIT_SELECT.BIT_8 ? 0 : 1);
+			
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.loadAccumulator(CPU.getAccumulator() ^ xorVal);
+				}
+			}
+		},
 		//PHA - Push Accumulator
 		0x48: function() {
 			return {
@@ -885,7 +900,8 @@ var getInstructionMap = function(CPU, MEMORY) {
 				func: function() {
 					var addr = MEMORY.getUInt16AtLocation(0, addrLocation);
 					var bank = MEMORY.getByteAtLocation(0, addrLocation + 2);
-					CPU.setPC(MEMORY.getUInt16AtLocation(bank, addr));
+					CPU.setPBR(bank);
+					CPU.setPC(addr);
 				}
 			}
 		},
