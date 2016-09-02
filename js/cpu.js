@@ -388,7 +388,7 @@ CPU.prototype.execute = function(cycles) {
 };
 
 CPU.prototype.checkBreakpoints = function() {
-	if (this.pc === 0x80C9) {
+	if (this.pbr === 0x7E && this.pc === 0x1000) {
 		this.logger.printLog();
 		debugger;
 	}

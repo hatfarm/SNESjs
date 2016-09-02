@@ -31,6 +31,8 @@ The way memory is address is 0xBB:AAAA where BB is a bank, and then AAAA is the 
 There are 16MB addressable by the system.*/
 var Memory = function() {
 	this.banks = [];
+	
+	this.DMAModes = [this.DMAModeZero, this.DMAModeOne, this.DMAModeTwo, this.DMAModeThree, this.DMAModeFour, this.DMAModeFive, this.DMAModeSix, this.DMAModeSeven];
 };
 
 var IS_LITTLE_ENDIAN = true;
@@ -71,18 +73,25 @@ Memory.prototype.initializeMemory = function(romData) {
 	}
 };
 
-//When Register 0x420D bit 1 is set, we have fast read, otherwise, slow read, this is hardcoded to slow for now...
+//When Register 0x420D bit 1 is set, we have fast read, otherwise, slow read
 var isFastOrSlow = function() {
-	return false;
+	return !!(this.getByteAtLocation(0, 0x420D) & 0x01);
 }
 
 //Different memory locations have different timings, this information is from http://wiki.superfamicom.org/snes/show/Memory+Mapping
-Memory.prototype.getMemAccessCycleTime = function(bank, address) {
+Memory.prototype.getMemAccessCycleTime = function(bank, address, val) {
 	//From byuu himself, this is the fastest way to look this up.
 	var addr = (bank << 16) | address;
 	if(addr & 0x408000) return addr & 0x800000 ? romSpeed : 8;
 	if(addr + 0x6000 & 0x4000) return 8;
 	if(addr - 0x4000 & 0x7e00) return 6;
+	//This is a DMA process
+	if (addr === 0x00420B) {
+		var retVal = 0;
+		for (var i = 0; i < 8; i++) {
+			//TODO: FILL IN TIME HERE
+		}
+	}
 	return 12;
 };
 
@@ -116,6 +125,82 @@ Memory.prototype.setROMProtectedByteAtLocation = function(bank, address, value) 
 		throw new Error("Attempted write to ROM Address! Bank:" + bank.toString(16) + " Address:" + address.toString(16));
 	} else {
 		this.banks[bank][address] = value;
+		if (address === 0x420B && bank === 0x00) {
+			this.doDMA();
+		}
+	}
+};
+
+Memory.prototype.getNumBytesToTransfer = function(channel) {
+	return this.getUInt16AtLocation(0, 0x4306 | (channel << 4));
+};
+
+Memory.prototype.doDMA = function() {
+	var MDMAEN = this.getByteAtLocation(0, 0x420B);
+	var enableMask = 1;
+	for (var i = 0; i < 8; i++) {
+		if (enableMask & MDMAEN) {
+			this.doDMAForChannel(i);
+		}
+		enableMask = enableMask << 1;
+	}
+};
+
+Memory.prototype.doDMAForChannel = function(channel) {
+	var bytesToTransfer = this.getNumBytesToTransfer(channel);
+	var controlRegister = this.getByteAtLocation(0, 0x4300 | (channel << 4));
+	var isPPUtoCPU = !!(0x80 & controlRegister);
+	var isFixedMemoryAddress = !!(0x10 & controlRegister);
+	var shouldDecrementAddress = !!(0x08 & controlRegister);
+	var srcAddr = isPPUtoCPU ? this.getPPUAddressForChannel(channel) : this.getCPUAddressForChannel(channel);
+	var dstAddr = isPPUtoCPU ? this.getCPUAddressForChannel(channel) : this.getPPUAddressForChannel(channel);
+	var DMATransferMode = 0x07 & controlRegister;
+	this.DMAModes[DMATransferMode](isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr);
+};
+
+Memory.prototype.DMAModeZero = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
+	
+};
+
+Memory.prototype.DMAModeOne = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
+	
+};
+
+Memory.prototype.DMAModeTwo = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
+	
+};
+
+Memory.prototype.DMAModeThree = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
+	
+};
+
+Memory.prototype.DMAModeFour = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
+	
+};
+
+Memory.prototype.DMAModeFive = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
+	
+};
+
+Memory.prototype.DMAModeSix = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
+	
+};
+
+Memory.prototype.DMAModeSeven = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
+	
+};
+
+Memory.prototype.getCPUAddressForChannel = function(channel) {
+	return {
+		bank: this.getByteAtLocation(0, 0x4304 | (channel << 4)),
+		address: this.getUInt16AtLocation(0, 0x4302 | (channel << 4)),
+	}
+}
+
+Memory.prototype.getPPUAddressForChannel = function(channel) {
+	return {
+		bank: 0,
+		address: Utils.get2ByteValue(0x21, this.getByteAtLocation(0, 0x4301 | (channel << 4))),
 	}
 };
 
