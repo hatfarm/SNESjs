@@ -40,6 +40,7 @@ var OVERFLOW_BITMASK = 0x40;
 var NEGATIVE_BITMASK = 0x80;
 
 var getIndirectLongIndexedYCyclesAddrBank = function(CPU, MEMORY) {
+	"use strict";
 	var addressLocation = CPU.getDirectPageValue(MEMORY.getByteAtLocation(CPU.pbr, CPU.pc + 1));
 	var bank = MEMORY.getByteAtLocation(0, addressLocation + 2);
 	var addr = MEMORY.getUInt16AtLocation(0, addressLocation) + CPU.getYIndex();
@@ -55,10 +56,11 @@ var getIndirectLongIndexedYCyclesAddrBank = function(CPU, MEMORY) {
 		bank: bank,
 		addr: addr, 
 		cycles: cycles,
-	}
+	};
 };
 
 var getRelativeBranchInformation = function(CPU, isBranchTaken, isBranchAlways, MEMORY) {
+	"use strict";
 	var branchOffset = MEMORY.getSignedByteAtLocation(CPU.pbr, CPU.getPC() + 1);
 	var addr = branchOffset + CPU.getPC() + 2;
 	var crossedPageBoundary = (CPU.getPC() & 0xFF00) != (addr & 0xFF00);
@@ -70,10 +72,11 @@ var getRelativeBranchInformation = function(CPU, isBranchTaken, isBranchAlways, 
 	return {
 		addr: addr,
 		cycles: cycles,
-	}
+	};
 };
 
 var getInstructionMap = function(CPU, MEMORY) {
+	"use strict";
 	return {
 		//BRK -- Break
 		0x00: function() {
@@ -207,7 +210,7 @@ var getInstructionMap = function(CPU, MEMORY) {
 		0x29: function() {
 			var size = 2;
 			var cycles = MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE;
-			if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_8) {
+			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_8) {
 				var constVal = MEMORY.getByteAtLocation(CPU.pbr, CPU.pc + 1);
 			} else {
 				size++;

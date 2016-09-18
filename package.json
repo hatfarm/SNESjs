@@ -27,5 +27,8 @@
     "pug": "^2.0.0-beta4",
     "speaker": "^0.3.0",
     "webpack": "^1.13.1"
+  },
+  "devDependencies": {
+    "jshint": "^2.9.3"
   }
 }

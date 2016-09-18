@@ -24,6 +24,7 @@ SOFTWARE.
 Super NES and Super Nintendo Entertainment System are trademarks of
   Nintendo Co., Limited and its subsidiary companies.
 **********************************************************************/
+/*jshint esversion: 6 */
 var utils = require('./utils.js');
 var Logger = require('./logger.js');
 var Instructions = require('./instructions.js');
@@ -41,6 +42,7 @@ var LITTLE_ENDIAN_TYPED_ARRAYS_FLAG = true;
 /*Most of the information here is from http://wiki.superfamicom.org/snes/show/65816+Reference*/
 /*This is the CPU for the SNES, it mostly just handles PC/cycle count incrementing and also the instructions*/
 var CPU = function() {
+	"use strict";
 	var _this = this;
 	
 	var buffer = new ArrayBuffer(10);
@@ -68,9 +70,6 @@ var CPU = function() {
 	
 	//Arrays in JS have stack functionality built in.
 	var stack = new Stack();
-	
-	//The memory used by the system
-	this.memory;
 	
 	//Used for debug logging
 	this.logger = new Logger();
@@ -113,7 +112,7 @@ var CPU = function() {
 	
 	this.getStackRelativeLocation = function(operand) {
 		return stack.getPointer() + operand;
-	}
+	};
 	
 	this.getStackPointer = function() {
 		return stack.getPointer();
@@ -133,19 +132,19 @@ var CPU = function() {
 	
 	this.getDirectPageValue = function(val, index) {
 		return dpr + val + (index ? index : 0);
-	}
+	};
 	
 	this.getDPRLowNotZero = function() {
 		return dpr & 0x0FF !== 0;
-	}
+	};
 	
 	this.getDPR = function() {
 		return dpr;
-	}
+	};
 	
 	this.setDPR = function(newVal) {
 		dpr = newVal;
-	}
+	};
 	
 	this.getAccumulatorSizeSelect = function() {
 		return this.accumSizeSelect;
@@ -165,7 +164,7 @@ var CPU = function() {
 	
 	this.setEmulationFlag = function(val) {
 		this.isEmulationFlag = val;
-	}
+	};
 	
 	this.getAccumulatorBufferOffset = function() {
 		return ACCUMULATOR_BUFFER_OFFSET;
@@ -173,23 +172,23 @@ var CPU = function() {
 	
 	this.getXIndexBufferOffset = function() {
 		return INDEX_X_BUFFER_OFFSET;
-	}
+	};
 	
 	this.getYIndexBufferOffset = function() {
 		return INDEX_Y_BUFFER_OFFSET;
-	}
+	};
 	
 	this.getXIndex = function() {
 		return this.getIndexRegisterSelct() ? this.getXIndex8() : this.getXIndex16();
 	};
 	
 	this.getXIndex8 = function() {
-		return registerDV.getUint8(this.getXIndexBufferOffset())
-	}
+		return registerDV.getUint8(this.getXIndexBufferOffset());
+	};
 	
 	this.getXIndex16 = function() {
 		return registerDV.getUint16(this.getXIndexBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
-	}
+	};
 	
 	this.setXIndex = function(val) {
 		if(this.getIndexRegisterSelct()) {
@@ -204,12 +203,12 @@ var CPU = function() {
 	};
 	
 	this.getYIndex8 = function() {
-		return registerDV.getUint8(this.getYIndexBufferOffset())
-	}
+		return registerDV.getUint8(this.getYIndexBufferOffset());
+	};
 	
 	this.getYIndex16 = function() {
 		return registerDV.getUint16(this.getYIndexBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
-	}
+	};
 	
 	this.setYIndex = function(val) {
 		if(this.getIndexRegisterSelct()) {
@@ -224,12 +223,12 @@ var CPU = function() {
 	};
 	
 	this.getAccumulator8 = function() {
-		return registerDV.getUint8(this.getAccumulatorBufferOffset())
-	}
+		return registerDV.getUint8(this.getAccumulatorBufferOffset());
+	};
 	
 	this.getAccumulator16 = function() {
 		return registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
-	}
+	};
 	
 	this.setAccumulator = function(val) {
 		if(this.getAccumulatorOrMemorySize()) {
@@ -265,7 +264,7 @@ var CPU = function() {
 	
 	this.getHelperBufferValue = function() {
 		return registerDV.getUint32(HELPER_BUFFER_OFFSET, LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
-	}
+	};
 	
 	this.getCarryFlagStatus = function() {
 		return this.carry;
@@ -276,7 +275,7 @@ var CPU = function() {
 	};
 	
 	this.doSubtraction = function(val) {
-		this.doAddition(val*-1)
+		this.doAddition(val*-1);
 	};
 	
 	this.doAddition = function(val) {
@@ -318,7 +317,7 @@ var CPU = function() {
 		this.setAccumulator(val);
 		this.updateNegativeFlag(this.getAccumulator(), this.getAccumulatorSizeSelect());
 		this.updateZeroFlag(this.getAccumulator());
-	}
+	};
 	
 	this.getPBR = function() {
 		return this.pbr;
@@ -335,7 +334,7 @@ var CPU = function() {
 
 CPU.prototype.getPC = function(){
 	return this.pc;
-}
+};
 
 CPU.prototype.logInstruction = function(instruction) {
 	if (!this.logger.debug) {
@@ -363,7 +362,7 @@ CPU.prototype.logInstruction = function(instruction) {
 	instructionString += "P:" + `${this.getEmulationFlag() ? "E" : "e"}` + `${this.getNegativeFlag() ? "N" : "n"}` + `${this.getOverflowFlag() ? "V" : "v"}` + `${this.getAccumulatorOrMemorySize() ? "M" : "m"}`;
 	instructionString += `${this.getIndexRegisterSize() ? "X" : "x"}` + `${this.getDecimalMode() ? "D" : "d"}` + `${this.getIRQDisabledFlag() ? "I" : "i"}` + `${this.getZeroFlag() ? "Z" : "z"}` + `${this.getCarryFlagStatus() ? "C" : "c"}`;
 	return instructionString;
-}
+};
 
 CPU.prototype.execute = function(cycles) {
 	//We gain back our excess cycles this loop.
@@ -388,15 +387,15 @@ CPU.prototype.execute = function(cycles) {
 };
 
 CPU.prototype.checkBreakpoints = function() {
-	if (this.pbr === 0x7E && this.pc === 0x1000) {
+	/*if (this.pbr === 0x7E && this.pc === 0x1000) {
 		this.logger.printLog();
 		debugger;
-	}
+	}*/
 };
 
 CPU.prototype.incPC = function(pc_inc) {
 	this.setPC(this.pc + pc_inc);
-}
+};
 
 CPU.prototype.setOverflowFlag = function(val) {
 	this.overflow = val;
@@ -415,14 +414,14 @@ CPU.prototype.setNegativeFlag = function(val) {
 };
 
 CPU.prototype.updateNegativeFlag = function(val, sizeSelector) {
-	var accMask = this.isEmulationFlag || sizeSelector === BIT_SELECT.BIT_8 ? 0x80 : 0x8000
+	var accMask = this.isEmulationFlag || sizeSelector === BIT_SELECT.BIT_8 ? 0x80 : 0x8000;
 	this.setNegativeFlag((val < 0) || !!(val & accMask));
 	
 };
 
 CPU.prototype.getDecimalMode = function() {
 	return this.decimalMode;
-}
+};
 
 CPU.prototype.setDecimalMode = function(val) {
 	this.decimalMode = val;
@@ -430,7 +429,7 @@ CPU.prototype.setDecimalMode = function(val) {
 
 CPU.prototype.setIndexRegisterSelect = function(val) {
 	this.indexRegisterSelect = val;
-}
+};
 
 CPU.prototype.setMemoryAccumulatorSelect = function(val) {
 	this.accumSizeSelect = val;
@@ -441,7 +440,7 @@ CPU.prototype.setCarryFlag = function(val) {
 };
 
 CPU.prototype.updateAdditionCarryFlag = function(val, registerSizeSelect) {
-	var maxVal = registerSizeSelect === BIT_SELECT.BIT_16 ? 0xFFFF : 0xFF
+	var maxVal = registerSizeSelect === BIT_SELECT.BIT_16 ? 0xFFFF : 0xFF;
 	this.setCarryFlag(val > maxVal);
 };
 
@@ -455,7 +454,7 @@ CPU.prototype.setIRQDisabledFlag = function(val) {
 
 CPU.prototype.getIRQDisabledFlag = function() {
 	return this.IRQDisabled;
-}
+};
 
 CPU.prototype.setZeroFlag = function(val) {
 	this.isZero = val;
@@ -463,7 +462,7 @@ CPU.prototype.setZeroFlag = function(val) {
 
 CPU.prototype.getZeroFlag = function() {
 	return this.isZero;
-}
+};
 
 CPU.prototype.updateZeroFlag = function(val) {
 	this.setZeroFlag(val === 0);
@@ -483,6 +482,6 @@ CPU.prototype.updateOverflowFlag = function(val) {
 
 CPU.prototype.setPC = function(val) {
 	this.pc = val;
-}
+};
 
 module.exports = CPU;

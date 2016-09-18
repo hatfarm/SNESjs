@@ -32,13 +32,19 @@ var Logger = require('./logger.js');
 var HIROM_START_LOC = 0xFFB0;
 var LOROM_START_LOC = 0x7FB0;
 
-function timestamp() {
-  return window.performance && window.performance.now ? window.performance.now() : new Date().getTime();
-};
+var timestamp = function () {
+	"use strict";
+	if (window.performance && window.performance.now) {
+		return function () { return window.performance.now(); };
+	}
+	
+	return function () { return new Date().getTime(); };
+}();
 
 var previousFrameTime = timestamp();
 
 var SNESEmu = function(canvas, romContent) {
+	"use strict";
 	var _this = this;
 	this.canvas = canvas;
 	this.ctx = this.canvas.getContext( '2d' );
@@ -102,16 +108,16 @@ var SNESEmu = function(canvas, romContent) {
 		var hiRomSizeCheck = getROMSizeIsValid(HIROM_START_LOC);
 		var loChecksum = getCheckSumValue(LOROM_START_LOC);
 		var loRomSizeCheck = getROMSizeIsValid(LOROM_START_LOC);
-		if (hiChecksum === 0xFFFF 
-			&& _this.romData[_this.smcOffset + HIROM_START_LOC + 0x25] & 1 === 1
-			&& hiRomSizeCheck) 
+		if (hiChecksum === 0xFFFF &&
+			_this.romData[_this.smcOffset + HIROM_START_LOC + 0x25] & 1 === 1 &&
+			hiRomSizeCheck)
 		{
-			_this.logger.log("This is a hiRom game.")
+			_this.logger.log("This is a hiRom game.");
 			_this.headerStart = HIROM_START_LOC;
 		} 
 		//This is a bit loose, but Super Mario World fails to find the correct name if we don't have this be this loose
 		if (loChecksum === 0xFFFF && loRomSizeCheck) {
-			_this.logger.log("This is a loRom game.")
+			_this.logger.log("This is a loRom game.");
 			_this.headerStart = LOROM_START_LOC;
 		} 
 

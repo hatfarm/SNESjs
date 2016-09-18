@@ -31,8 +31,7 @@ The way memory is address is 0xBB:AAAA where BB is a bank, and then AAAA is the 
 There are 16MB addressable by the system.*/
 var Memory = function() {
 	this.banks = [];
-	
-	this.DMAModes = [this.DMAModeZero, this.DMAModeOne, this.DMAModeTwo, this.DMAModeThree, this.DMAModeFour, this.DMAModeFive, this.DMAModeSix, this.DMAModeSeven];
+	this.inDMA = false;
 };
 
 var IS_LITTLE_ENDIAN = true;
@@ -91,6 +90,7 @@ Memory.prototype.getMemAccessCycleTime = function(bank, address, val) {
 		for (var i = 0; i < 8; i++) {
 			//TODO: FILL IN TIME HERE
 		}
+		return retVal;
 	}
 	return 12;
 };
@@ -117,7 +117,7 @@ Memory.prototype.getInt16AtLocation = function(bank, address) {
 
 Memory.prototype.getUInt16AtLocation = function(bank, address) {
 	return new DataView(this.banks[bank].buffer).getUint16(address, IS_LITTLE_ENDIAN);
-}
+};
 
 Memory.prototype.setROMProtectedByteAtLocation = function(bank, address, value) {
 	if(isMemoryAddressROM(bank, address)) {
@@ -127,7 +127,29 @@ Memory.prototype.setROMProtectedByteAtLocation = function(bank, address, value) 
 		this.banks[bank][address] = value;
 		if (address === 0x420B && bank === 0x00) {
 			this.doDMA();
+		} else if (address === 0x2180 && bank === 0x00) {
+			this.writeToWRAM(value);
 		}
+	}
+};
+
+Memory.prototype.writeToWRAM = function(value){
+	var bank = this.getByteAtLocation(0, 0x2183);
+	var addr = this.getUInt16AtLocation(0, 0x2181);
+	this.setROMProtectedByteAtLocation(bank, addr, value);
+	//When doing a DMA write, this doesn't get incremented, so we only do this when it's not
+	if (!this.inDMA) {
+		addr++;
+		if (addr >= 65536) {
+			bank++;
+			if (bank > 0x7F) {
+				bank = 0x7E;
+			}
+			this.setROMProtectedByteAtLocation(0, 0x2183, bank);
+			addr = addr % 65536;
+		}
+		
+		this.setROMProtectedWordAtLocation(0, 0x2181, addr);
 	}
 };
 
@@ -136,6 +158,7 @@ Memory.prototype.getNumBytesToTransfer = function(channel) {
 };
 
 Memory.prototype.doDMA = function() {
+	this.inDMA = true;
 	var MDMAEN = this.getByteAtLocation(0, 0x420B);
 	var enableMask = 1;
 	for (var i = 0; i < 8; i++) {
@@ -144,6 +167,7 @@ Memory.prototype.doDMA = function() {
 		}
 		enableMask = enableMask << 1;
 	}
+	this.inDMA = false;
 };
 
 Memory.prototype.doDMAForChannel = function(channel) {
@@ -155,39 +179,59 @@ Memory.prototype.doDMAForChannel = function(channel) {
 	var srcAddr = isPPUtoCPU ? this.getPPUAddressForChannel(channel) : this.getCPUAddressForChannel(channel);
 	var dstAddr = isPPUtoCPU ? this.getCPUAddressForChannel(channel) : this.getPPUAddressForChannel(channel);
 	var DMATransferMode = 0x07 & controlRegister;
-	this.DMAModes[DMATransferMode](isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr);
+
+	switch(DMATransferMode) {
+		case 0:
+		case 2:
+			this.doDMAWork(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr, bytesToTransfer, isPPUtoCPU, 1, 1);
+			break;
+		case 1:
+			this.doDMAWork(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr, bytesToTransfer, isPPUtoCPU, 2, 1);
+			break;
+		case 3:
+			this.doDMAWork(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr, bytesToTransfer, isPPUtoCPU, 2, 2);
+			break;
+		case 4:
+			this.doDMAWork(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr, bytesToTransfer, isPPUtoCPU, 4, 1);
+			break;
+		case 5:
+			throw new Error("DMA Mode 5 not yet supported!");
+		case 6:
+			throw new Error("DMA Mode 6 not yet supported!");
+		case 7:
+			throw new Error("DMA Mode 7 not yet supported!");
+	}
 };
 
-Memory.prototype.DMAModeZero = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
-	
-};
+Memory.prototype.doDMAWork = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr, bytesToTransfer, isPPUtoCPU, numRegisters, numWritePerRegister) {
+	var registerOffset = 0;
+	var writeCount = 0 ;
+	var cpuAddr = isPPUtoCPU ? dstAddr : srcAddr;
+	var ppuAddr = isPPUtoCPU ? srcAddr : dstAddr;
+	var basePPUAddress = ppuAddr.address;
+	do {
+		this.setROMProtectedByteAtLocation(dstAddr.bank, dstAddr.address, this.getByteAtLocation(srcAddr.bank, srcAddr.address));
 
-Memory.prototype.DMAModeOne = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
-	
-};
+		bytesToTransfer = Utils.subtractWithWrapAround16(bytesToTransfer);
+		if (bytesToTransfer <= 0) {
+			return;
+		}
 
-Memory.prototype.DMAModeTwo = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
-	
-};
-
-Memory.prototype.DMAModeThree = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
-	
-};
-
-Memory.prototype.DMAModeFour = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
-	
-};
-
-Memory.prototype.DMAModeFive = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
-	
-};
-
-Memory.prototype.DMAModeSix = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
-	
-};
-
-Memory.prototype.DMAModeSeven = function(isFixedMemoryAddress, shouldDecrementAddress, srcAddr, dstAddr) {
-	
+		if (!isFixedMemoryAddress) {
+			if (shouldDecrementAddress) {
+				cpuAddr.address = Utils.subtractWithWrapAround16(cpuAddr.address);
+			} else {
+				cpuAddr.address = Utils.addWithWrapAround16(cpuAddr.address);
+			}
+		}
+		
+		writeCount = (writeCount + 1) % numWritePerRegister;
+		
+		if (writeCount === 0) {
+			registerOffset = (registerOffset + 1) % numRegisters;
+			ppuAddr.address = basePPUAddress + registerOffset;
+		}
+	} while (bytesToTransfer > 0);
 };
 
 Memory.prototype.getCPUAddressForChannel = function(channel) {
@@ -195,7 +239,7 @@ Memory.prototype.getCPUAddressForChannel = function(channel) {
 		bank: this.getByteAtLocation(0, 0x4304 | (channel << 4)),
 		address: this.getUInt16AtLocation(0, 0x4302 | (channel << 4)),
 	}
-}
+};
 
 Memory.prototype.getPPUAddressForChannel = function(channel) {
 	return {
@@ -223,6 +267,6 @@ Memory.prototype.setROMProtectedWordAtLocation = function(bank, address, value) 
 			new DataView(this.banks[bank].buffer).setInt16(address, value, true); //True is for little endian
 		}
 	}
-}
+};
 
 module.exports = Memory;

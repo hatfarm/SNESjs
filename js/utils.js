@@ -33,7 +33,15 @@ var zeroFill = function(number, size, radix) {
   number = number.toString(radix);
   while (number.length < size) number = "0" + number;
   return number.toUpperCase();
-}
+};
+
+var subtractWithWrapAround16 = function(val) {
+	return (val + 65535) % 65536;
+};
+
+var addWithWrapAround16 = function(val) {
+	return (val + 65537) % 65536;
+};
 
 var get3LittleEndianByteValue = function(Byte1, Byte2, Byte3) {
 	return (Byte2 << 16)(Byte2 << 8) | Byte1;
@@ -96,4 +104,6 @@ module.exports = {
 	getMSBFromWord: getMSBFromWord,
 	getLSBFromWord: getLSBFromWord,
 	zeroFill: zeroFill,
+	subtractWithWrapAround16: subtractWithWrapAround16,
+	addWithWrapAround16: addWithWrapAround16,
 }

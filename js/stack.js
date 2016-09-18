@@ -28,6 +28,7 @@ var Logger = require('./logger.js');
 var POINTER_INCREMENT_DECREMENT_AMOUNT = 1;
 
 var Stack = function() {
+	"use strict";
 	var memory;
 	var pointer = new Uint16Array(1);
 	var logger = new Logger();
@@ -62,7 +63,7 @@ var Stack = function() {
 	
 	this.getPointer = function() {
 		return pointer[0];
-	}
+	};
 };
 
 module.exports = Stack;
