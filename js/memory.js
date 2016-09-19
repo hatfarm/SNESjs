@@ -31,7 +31,6 @@ The way memory is address is 0xBB:AAAA where BB is a bank, and then AAAA is the 
 There are 16MB addressable by the system.*/
 var Memory = function() {
 	this.banks = [];
-	this.inDMA = false;
 	this.isHiRom = false;
 };
 
@@ -175,7 +174,6 @@ Memory.prototype.writeToWRAM = function(value){
 	var bank = this.getByteAtLocation(0, 0x2183);
 	var addr = this.getUInt16AtLocation(0, 0x2181);
 	this.setROMProtectedByteAtLocation(bank, addr, value);
-	//When doing a DMA write, this doesn't get incremented, so we only do this when it's not
 	addr++;
 	if (addr >= 65536) {
 		bank++;
@@ -194,7 +192,6 @@ Memory.prototype.getNumBytesToTransfer = function(channel) {
 };
 
 Memory.prototype.doDMA = function() {
-	this.inDMA = true;
 	var MDMAEN = this.getByteAtLocation(0, 0x420B);
 	if (MDMAEN) {
 		var enableMask = 1;
@@ -205,7 +202,6 @@ Memory.prototype.doDMA = function() {
 			enableMask = enableMask << 1;
 		}
 	}
-	this.inDMA = false;
 };
 
 Memory.prototype.doDMAForChannel = function(channel) {
