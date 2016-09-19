@@ -46,10 +46,11 @@ var previousFrameTime = timestamp();
 var SNESEmu = function(canvas, romContent) {
 	"use strict";
 	var _this = this;
+	var isHiRom = true;
 	this.canvas = canvas;
 	this.ctx = this.canvas.getContext( '2d' );
 	this.romData = new Uint8ClampedArray(romContent);
-	this.logger = new Logger();
+	this.logger = Logger;
 	this.headerStart = 0;
 	this.keepRunning = true;
 	setSMCOffset();
@@ -63,7 +64,7 @@ var SNESEmu = function(canvas, romContent) {
 	var memory = new Memory();
 	var ppu = new PPU();
 	proc.init(getResetPC(), memory);
-	memory.initializeMemory(this.romData);
+	memory.initializeMemory(this.romData, isHiRom);
 	ppu.init(memory);
 	
 	function frame() {
@@ -113,10 +114,12 @@ var SNESEmu = function(canvas, romContent) {
 			hiRomSizeCheck)
 		{
 			_this.logger.log("This is a hiRom game.");
+			isHiRom = true;
 			_this.headerStart = HIROM_START_LOC;
 		} 
 		//This is a bit loose, but Super Mario World fails to find the correct name if we don't have this be this loose
 		if (loChecksum === 0xFFFF && loRomSizeCheck) {
+			isHiRom = false;
 			_this.logger.log("This is a loRom game.");
 			_this.headerStart = LOROM_START_LOC;
 		} 

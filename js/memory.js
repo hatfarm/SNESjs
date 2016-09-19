@@ -32,6 +32,7 @@ There are 16MB addressable by the system.*/
 var Memory = function() {
 	this.banks = [];
 	this.inDMA = false;
+	this.isHiRom = false;
 };
 
 var IS_LITTLE_ENDIAN = true;
@@ -51,24 +52,61 @@ var isMemoryAddressROM = function(bank, address) {
 
 Memory.prototype.setLogger = function(Logger) {
 	this.logger = Logger;
+};
+
+var setVal = function(_this, bank, address, value) {
+	if (value < 0) {
+		new DataView(_this.banks[bank].buffer).setInt8(address, value);
+	} else {
+		new DataView(_this.banks[bank].buffer).setUint8(address, value);
+	}
 }
 
+var writeMirroredLoRom = function(_this, bank, address, value) {
+	setVal(_this, bank, address, value);
+	if (bank >= 0x00 && bank <= 0x7D) {
+		setVal(_this, bank + 0x80, address, value);
+		if (bank <= 0x3F && address >= 0 && address <= 0x1FFF) {
+			setVal(_this, 0x7E, address, value);
+		}
+	} else if (bank >= 0x80 && bank <= 0xFD) {
+		setVal(_this, bank - 0x80, address, value);
+		if (bank <= 0xBF && address >= 0 && address <= 0x1FFF) {
+			setVal(_this, 0x7E, address, value);
+		}
+	}
+};
+
+var writeMirroredHiRom = function(_this, bank, address, value) {
+	_this.banks[bank][address] = value;
+};
+
 //After the ROM is loaded, it is copied to memory in certain locations, we're setting that up here
-Memory.prototype.initializeMemory = function(romData) {
+Memory.prototype.initializeMemory = function(romData, isHiRom) {
+	this.isHiRom = isHiRom;
+	if (isHiRom) {
+		this.writeMirroredMemory = function(bank, address, value) { writeMirroredHiRom(this, bank, address, value) };
+	} else {
+		this.writeMirroredMemory = function(bank, address, value) { writeMirroredLoRom(this, bank, address, value) };
+	}
 	var curBank = 0;
 	var romIndex = 0;
 	//We're going to be creating all 256 banks, and putting any data we have in them.
 	for(curBank = 0; curBank < 0xFF; curBank++) {
 		var newBank = new Uint8ClampedArray(0x10000);
+		this.banks.push(newBank);
+	}
+	for(curBank = 0; curBank < 0xFF; curBank++) {
 		var i;
 		for(i = 0; i < 0x10000; i++) {
 			//We're either copying rom data over, or we're writing a zero to the memory location
 			if (isMemoryAddressROM(curBank, i) && romIndex < romData.length) {
-				newBank[i] = romData[romIndex];
+				writeMirroredLoRom(this, curBank, i, romData[romIndex]);
+				//newBank[i] = romData[romIndex];
 				romIndex++;
 			}
 		}
-		this.banks.push(newBank);
+		
 	}
 };
 
@@ -124,7 +162,7 @@ Memory.prototype.setROMProtectedByteAtLocation = function(bank, address, value) 
 		this.logger.printLog();
 		throw new Error("Attempted write to ROM Address! Bank:" + bank.toString(16) + " Address:" + address.toString(16));
 	} else {
-		this.banks[bank][address] = value;
+		this.writeMirroredMemory(bank, address, value);
 		if (address === 0x420B && bank === 0x00) {
 			this.doDMA();
 		} else if (address === 0x2180 && bank === 0x00) {
@@ -138,34 +176,34 @@ Memory.prototype.writeToWRAM = function(value){
 	var addr = this.getUInt16AtLocation(0, 0x2181);
 	this.setROMProtectedByteAtLocation(bank, addr, value);
 	//When doing a DMA write, this doesn't get incremented, so we only do this when it's not
-	if (!this.inDMA) {
-		addr++;
-		if (addr >= 65536) {
-			bank++;
-			if (bank > 0x7F) {
-				bank = 0x7E;
-			}
-			this.setROMProtectedByteAtLocation(0, 0x2183, bank);
-			addr = addr % 65536;
+	addr++;
+	if (addr >= 65536) {
+		bank++;
+		if (bank > 0xFF) {
+			bank = 0x00;
 		}
-		
-		this.setROMProtectedWordAtLocation(0, 0x2181, addr);
+		this.setROMProtectedByteAtLocation(0, 0x2183, bank);
+		addr = addr % 65536;
 	}
+	
+	this.setROMProtectedWordAtLocation(0, 0x2181, addr);
 };
 
 Memory.prototype.getNumBytesToTransfer = function(channel) {
-	return this.getUInt16AtLocation(0, 0x4306 | (channel << 4));
+	return this.getUInt16AtLocation(0, 0x4305 | (channel << 4));
 };
 
 Memory.prototype.doDMA = function() {
 	this.inDMA = true;
 	var MDMAEN = this.getByteAtLocation(0, 0x420B);
-	var enableMask = 1;
-	for (var i = 0; i < 8; i++) {
-		if (enableMask & MDMAEN) {
-			this.doDMAForChannel(i);
+	if (MDMAEN) {
+		var enableMask = 1;
+		for (var i = 0; i < 8; i++) {
+			if (enableMask & MDMAEN) {
+				this.doDMAForChannel(i);
+			}
+			enableMask = enableMask << 1;
 		}
-		enableMask = enableMask << 1;
 	}
 	this.inDMA = false;
 };
@@ -261,11 +299,17 @@ Memory.prototype.setROMProtectedWordAtLocation = function(bank, address, value) 
 		this.logger.printLog();
 		throw new Error("Attempted write to ROM Address! Bank:" + bank.toString(16) + " Address:" + address.toString(16));
 	} else {
+		var buf = new ArrayBuffer(2);
+		var tempDV = new DataView(buf);
 		if(value >= 0x7FFF) {
-			new DataView(this.banks[bank].buffer).setUint16(address, value, true); //True is for little endian
+			tempDV.setUint16(0, value, true); //True is for little endian
 		} else {
-			new DataView(this.banks[bank].buffer).setInt16(address, value, true); //True is for little endian
+			tempDV.setInt16(0, value, true); //True is for little endian
 		}
+		//Moved this to the less efficient double copy to make mirroring easier, this is a place we could improve efficiency later
+		this.setROMProtectedByteAtLocation(bank, address, tempDV.getUint8(0));
+		this.setROMProtectedByteAtLocation(bank, address + 1, tempDV.getUint8(1));
+		
 	}
 };
 

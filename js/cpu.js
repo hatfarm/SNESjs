@@ -72,9 +72,9 @@ var CPU = function() {
 	var stack = new Stack();
 	
 	//Used for debug logging
-	this.logger = new Logger();
 	
 	this.init = function(resetPC, memory) {
+		this.logger = Logger;
 		if(resetPC === 0 || resetPC) {
 			this.setPC(resetPC);
 		} else {
@@ -387,10 +387,10 @@ CPU.prototype.execute = function(cycles) {
 };
 
 CPU.prototype.checkBreakpoints = function() {
-	/*if (this.pbr === 0x7E && this.pc === 0x1000) {
+	if (this.pbr === 0x7E && this.pc === 0x1000) {
 		this.logger.printLog();
 		debugger;
-	}*/
+	}
 };
 
 CPU.prototype.incPC = function(pc_inc) {

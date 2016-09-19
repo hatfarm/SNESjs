@@ -31,7 +31,7 @@ var Stack = function() {
 	"use strict";
 	var memory;
 	var pointer = new Uint16Array(1);
-	var logger = new Logger();
+	var logger = Logger;
 	
 	this.push = function(val) {
 		memory.setROMProtectedByteAtLocation(0, pointer[0], val);
@@ -52,7 +52,7 @@ var Stack = function() {
 	};
 	
 	this.setPointer = function(val) {
-		logger.log("Stack Pointer: " + val.toString(16));
+		//logger.log("Stack Pointer: " + val.toString(16));
 		pointer[0] = val;
 	};
 	
