@@ -92,15 +92,17 @@ var CPU = function() {
 			this.pushStack(this.getPBR());
 			this.setPBR(bank);
 		}
-		this.pushStack(utils.getMSBFromWord(this.getPC()));
-		this.pushStack(utils.getLSBFromWord(this.getPC()));
+		//You push on the last byte of the instruction, not the next instruction. WEIRD
+		this.pushStack(utils.getMSBFromWord(this.getPC() - 1));
+		this.pushStack(utils.getLSBFromWord(this.getPC() - 1));
 		this.setPC(address);
 	};
 	
 	this.returnFromSubroutine = function(isBankPushed) {
 		var LSB = this.popStack();
 		var MSB = this.popStack();
-		this.setPC(utils.get2ByteValue(MSB, LSB));
+		//Since we push the last byte of the subroutine instruction, we have to increment here to get the next instruction
+		this.setPC(utils.get2ByteValue(MSB, LSB) + 1);
 		if (isBankPushed) {
 			this.setPBR(this.popStack());
 		}

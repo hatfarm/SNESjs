@@ -358,6 +358,23 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//PLA - Pull Accumulator from Stack
+		0x68: function() {
+			return {
+				size: 1,
+				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16 ? 1 : 0),
+				func: function() {
+					if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+						var LSB = CPU.popStack();
+						var MSB = CPU.popStack();
+						var val = utils.get2ByteValue(MSB, LSB);
+					} else {
+						var val = CPU.popStack();
+					}
+					CPU.loadAccumulator(val);
+				}
+			}
+		},
 		//ADC #const - Add with Carry
 		0x69: function() {
 			if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_8) {

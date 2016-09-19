@@ -35,6 +35,7 @@ var Stack = function() {
 	
 	this.push = function(val) {
 		memory.setROMProtectedByteAtLocation(0, pointer[0], val);
+		//logger.log(val.toString(16) + " pushed to Stack.");
 		var newPointer = pointer[0] - POINTER_INCREMENT_DECREMENT_AMOUNT;
 		if (newPointer < 0) {
 			throw new Error("Stack Pointer Decremented beyond 0x0000");
