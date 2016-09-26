@@ -54,6 +54,10 @@ Memory.prototype.setLogger = function(Logger) {
 };
 
 var setVal = function(_this, bank, address, value) {
+	if (address === 0x8FD && bank === 0) {
+		_this.logger.printLog();
+		//debugger;
+	}
 	if (value < 0) {
 		new DataView(_this.banks[bank].buffer).setInt8(address, value);
 	} else {
@@ -72,6 +76,12 @@ var writeMirroredLoRom = function(_this, bank, address, value) {
 		setVal(_this, bank - 0x80, address, value);
 		if (bank <= 0xBF && address >= 0 && address <= 0x1FFF) {
 			setVal(_this, 0x7E, address, value);
+		}
+	} else if (bank === 0x7E && address <= 0x1FFF) {
+		var i = 0;
+		for (i = 0; i <= 0x3F; i++) {
+			setVal(_this, i, address, value);
+			setVal(_this, i + 0x80, address, value);
 		}
 	}
 };
@@ -101,8 +111,9 @@ Memory.prototype.initializeMemory = function(romData, isHiRom) {
 			//We're either copying rom data over, or we're writing a zero to the memory location
 			if (isMemoryAddressROM(curBank, i) && romIndex < romData.length) {
 				writeMirroredLoRom(this, curBank, i, romData[romIndex]);
-				//newBank[i] = romData[romIndex];
 				romIndex++;
+			} else {
+				setVal(this, curBank, i, 0x55);
 			}
 		}
 		

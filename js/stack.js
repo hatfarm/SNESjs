@@ -49,6 +49,7 @@ var Stack = function() {
 			throw new Error("Stack Pointer Incremented beyond 0xFFFF");
 		}
 		this.setPointer(newPointer);
+		//logger.log("Popping " + memory.getByteAtLocation(0, pointer[0]).toString(16) + " from location " + pointer[0].toString(16));
 		return memory.getByteAtLocation(0, pointer[0]);
 	};
 	

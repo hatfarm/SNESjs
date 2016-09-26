@@ -59,6 +59,24 @@ var getIndirectLongIndexedYCyclesAddrBank = function(CPU, MEMORY) {
 	};
 };
 
+var getDPIndexedBankCyclesAddr = function(CPU, MEMORY, indexValue) {
+	"use strict";
+	var bank = 0;
+	var addr = CPU.getDirectPageValue(MEMORY.getByteAtLocation(CPU.pbr, CPU.pc + 1), indexValue);
+	var cycles = (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(bank, addr);
+	if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+		cycles += MEMORY.getMemAccessCycleTime(bank, addr);
+	}
+	if (CPU.getDPRLowNotZero()) {
+		cycles += Timing.FAST_CPU_CYCLE;
+	}
+	return {
+		bank: bank,
+		addr: addr, 
+		cycles: cycles,
+	};
+}
+
 var getRelativeBranchInformation = function(CPU, isBranchTaken, isBranchAlways, MEMORY) {
 	"use strict";
 	var branchOffset = MEMORY.getSignedByteAtLocation(CPU.pbr, CPU.getPC() + 1);
@@ -801,6 +819,18 @@ var getInstructionMap = function(CPU, MEMORY) {
 					if (CPU.getCarryFlagStatus()) {
 						CPU.setPC(branchInfo.addr);
 					}
+				}
+			}
+		},
+		//LDA dp,X - Load Accumulator from Memory
+		0xB5: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH
+			var bankCyclesAddr = getDPIndexedBankCyclesAddr(CPU, MEMORY, CPU.getXIndex());
+			return {
+				size: 2,
+				CPUCycleCount: bankCyclesAddr.cycles,
+				func: function() {
+					CPU.loadAccumulator(MEMORY.getUnsignedValAtLocation(bankCyclesAddr.bank, bankCyclesAddr.addr, CPU.getAccumulatorOrMemorySize()));
 				}
 			}
 		},

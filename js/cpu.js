@@ -389,10 +389,10 @@ CPU.prototype.execute = function(cycles) {
 };
 
 CPU.prototype.checkBreakpoints = function() {
-	if (this.pbr === 0x7E && this.pc === 0x1000) {
+	/*if (this.pbr === 0x7E && this.pc === 0x1000) {
 		this.logger.printLog();
 		debugger;
-	}
+	}*/
 };
 
 CPU.prototype.incPC = function(pc_inc) {
