@@ -232,11 +232,15 @@ var CPU = function() {
 		return registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
 	};
 	
+	this.setAccumulator16 = function(val) {
+		this.setRegisterDVValue16(this.getAccumulatorBufferOffset(), val);
+	}
+	
 	this.setAccumulator = function(val) {
 		if(this.getAccumulatorOrMemorySize()) {
 			this.setRegisterDVValue8(this.getAccumulatorBufferOffset(), val);
 		} else {
-			this.setRegisterDVValue16(this.getAccumulatorBufferOffset(), val);
+			this.setAccumulator16(val);
 		}
 	};
 
@@ -313,6 +317,12 @@ var CPU = function() {
 		this.setYIndex(val);
 		this.updateZeroFlag(val);
 		this.updateNegativeFlag(val, this.indexRegisterSelect);
+	};
+	
+	this.loadAccumulator16 = function(val) {
+		this.setAccumulator16(val);
+		this.updateNegativeFlag(this.getAccumulator16(), BIT_SELECT.BIT_16);
+		this.updateZeroFlag(this.getAccumulator16());
 	};
 	
 	this.loadAccumulator = function(val) {
