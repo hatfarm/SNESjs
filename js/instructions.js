@@ -168,15 +168,28 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
 				func: function() {
 					if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_8) {
-						var carryMask =  0x08;
-						var LSMask = 0x0F;
-					} else {
 						var carryMask =  0x80;
 						var LSMask = 0x0FF;
+					} else {
+						var carryMask =  0x8000;
+						var LSMask = 0x0FFFF;
 					}
 					CPU.setCarryFlag(!!(CPU.getAccumulator() & carryMask));
 					CPU.loadAccumulator((CPU.getAccumulator() << 1) & LSMask);
 					
+				}
+			}
+		},
+		//BPL - Branch if plus
+		0x10: function() {
+			var branchInfo = getRelativeBranchInformation(CPU, !CPU.getNegativeFlag(), false, MEMORY);
+			return {
+				size: 2,
+				CPUCycleCount: branchInfo.cycles,
+				func: function() {
+					if (!CPU.getNegativeFlag()) {
+						CPU.setPC(branchInfo.addr);
+					}
 				}
 			}
 		},
@@ -187,6 +200,34 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
 				func: function() {
 					CPU.setCarryFlag(false);
+				}
+			}
+		},
+		//INC A - Increment Accumulator
+		0x1A: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH
+			var addr = CPU.getDirectPageValue(MEMORY.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var cycles = Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc);
+			return {
+				size: 1,
+				CPUCycleCount: cycles,
+				func: function() {
+					var newVal = CPU.getAccumulator() + 1;
+					CPU.loadAccumulator(newVal);
+				}
+			}
+		},
+		//TCS - Transfer Accumulator to Stack Pointer
+		0x1B: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					if (CPU.getEmulationFlag()) {
+						CPU.setStackPointer(CPU.getAccumulator8());
+					} else {
+						CPU.setStackPointer(CPU.getAccumulator16());
+					}
 				}
 			}
 		},
@@ -240,6 +281,16 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: cycles,
 				func: function() {
 					CPU.loadAccumulator(CPU.getAccumulator() & constVal);
+				}
+			}
+		},
+		//TSC - Transfer Stack Pointer to 16-bit Accumulator
+		0x3B: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					CPU.loadAccumulator16(CPU.getStackPointer());
 				}
 			}
 		},
@@ -426,7 +477,19 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
-		
+		//ADC (dy),Y - Add with Carry (Indirect Long Indexed,Y)
+		0x77: function() {
+			var vals = getIndirectLongIndexedYCyclesAddrBank(CPU, MEMORY);
+			
+			return {
+				size: 2,
+				CPUCycleCount: vals.cycles,
+				func: function() {
+					var val = MEMORY.getUInt16AtLocation(vals.bank, vals.addr);
+					CPU.doAddition(val);
+				}
+			}
+		},
 		//SEI - Set Interrupt Disable Flag
 		0x78: function() {
 			return {
