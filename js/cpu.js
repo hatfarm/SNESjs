@@ -78,7 +78,7 @@ var CPU = function() {
 		if(resetPC === 0 || resetPC) {
 			this.setPC(resetPC);
 		} else {
-			this.logger.log("PC initialized to default of 0xFFFC");
+			this.logger.debug && this.logger.log("PC initialized to default of 0xFFFC");
 			this.setPC(0xFFFC);
 		}
 		this.instructionList = new Instructions(this, memory);
@@ -227,6 +227,10 @@ var CPU = function() {
 	this.getAccumulator8 = function() {
 		return registerDV.getUint8(this.getAccumulatorBufferOffset());
 	};
+	
+	this.getAccumulatorForXBA = function() {
+		return registerDV.getUint16(this.getAccumulatorBufferOffset(), !LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
+	}
 	
 	this.getAccumulator16 = function() {
 		return registerDV.getUint16(this.getAccumulatorBufferOffset(), LITTLE_ENDIAN_TYPED_ARRAYS_FLAG);
@@ -389,7 +393,7 @@ CPU.prototype.execute = function(cycles) {
 			cyclesLeft -= instruction.CPUCycleCount;
 			//This needs to be last, because we have to update the PC in some instructions
 			instruction.func();
-			this.logger.log(instructionString);
+			this.logger.debug && this.logger.log(instructionString);
 			this.checkBreakpoints();
 		} else {
 			this.excessCycleTime = cyclesLeft;

@@ -113,19 +113,19 @@ var SNESEmu = function(canvas, romContent) {
 			_this.romData[_this.smcOffset + HIROM_START_LOC + 0x25] & 1 === 1 &&
 			hiRomSizeCheck)
 		{
-			_this.logger.log("This is a hiRom game.");
+			_this.logger.debug && _this.logger.log("This is a hiRom game.");
 			isHiRom = true;
 			_this.headerStart = HIROM_START_LOC;
 		} 
 		//This is a bit loose, but Super Mario World fails to find the correct name if we don't have this be this loose
 		if (loChecksum === 0xFFFF && loRomSizeCheck) {
 			isHiRom = false;
-			_this.logger.log("This is a loRom game.");
+			_this.logger.debug && _this.logger.log("This is a loRom game.");
 			_this.headerStart = LOROM_START_LOC;
 		} 
 
 		if (_this.headerStart === 0) {
-			_this.logger.log("Cannot locate header start...");
+			_this.logger.debug && _this.logger.log("Cannot locate header start...");
 		}
 	}
 	
@@ -144,10 +144,10 @@ var SNESEmu = function(canvas, romContent) {
 	
 	function setSMCOffset() {
 		if(_this.romData.length & 0x200){
-			_this.logger.log("This has an SMC header.");
+			_this.logger.debug && _this.logger.log("This has an SMC header.");
 			_this.smcOffset = 0x200;
 		} else {
-			_this.logger.log("This does not appear to have an SMC header.");
+			_this.logger.debug && _this.logger.log("This does not appear to have an SMC header.");
 			_this.smcOffset = 0;
 		}
 	}

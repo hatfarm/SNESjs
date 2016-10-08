@@ -59,6 +59,24 @@ var getIndirectLongIndexedYCyclesAddrBank = function(CPU, MEMORY) {
 	};
 };
 
+var getIndirectIndexedYCyclesAddr = function(CPU, MEMORY) {
+	"use strict";
+	var addressLocation = CPU.getDirectPageValue(MEMORY.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+	var addr = MEMORY.getUInt16AtLocation(0, addressLocation) + CPU.getYIndex();
+	var cycles = (MEMORY.getMemAccessCycleTime(0, addressLocation) << 1) + Timing.FAST_CPU_CYCLE + (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + MEMORY.getMemAccessCycleTime(CPU.dbr, addr);
+	if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
+		cycles += MEMORY.getMemAccessCycleTime(CPU.dbr, addr);
+	}
+	
+	if (CPU.getDPRLowNotZero()) {
+		cycles += Timing.FAST_CPU_CYCLE;
+	}
+	return {
+		addr: addr, 
+		cycles: cycles,
+	};
+};
+
 var getDPIndexedBankCyclesAddr = function(CPU, MEMORY, indexValue) {
 	"use strict";
 	var bank = 0;
@@ -284,6 +302,16 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//DEA - Decrement Accumulator
+		0x3A: function() {
+			return {
+				size: 1,
+				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
+				func: function() {
+					CPU.loadAccumulator(CPU.getAccumulator() - 1);
+				}
+			}
+		},
 		//TSC - Transfer Stack Pointer to 16-bit Accumulator
 		0x3B: function() {
 			return {
@@ -427,6 +455,23 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//ADC (dp) - Add with Carry
+		0x65: function() {
+			var accSize = CPU.getAccumulatorOrMemorySize();
+			var addressLocation = CPU.getDirectPageValue(MEMORY.getByteAtLocation(CPU.pbr, CPU.pc + 1));
+			var addVal = MEMORY.getUnsignedValAtLocation(0, addressLocation, accSize);
+			var cycles = (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (MEMORY.getMemAccessCycleTime(0, addressLocation) << accSize === BIT_SELECT.BIT_8 ? 0 : 1);
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.doAddition(addVal);
+				}
+			}
+		},
 		//PLA - Pull Accumulator from Stack
 		0x68: function() {
 			return {
@@ -454,9 +499,6 @@ var getInstructionMap = function(CPU, MEMORY) {
 				var size = 3;
 				var addVal = MEMORY.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
 				var cycles = (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + Timing.FAST_CPU_CYCLE;
-			}
-			if (CPU.getDecimalMode() === DECIMAL_MODES.DECIMAL) {
-				cycles += Timing.FAST_CPU_CYCLE;
 			}
 			return {
 				size: size,
@@ -682,6 +724,17 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//STA (_dp_),Y - Store Accumulator to Memory
+		0x91: function() {
+			var vals = getIndirectIndexedYCyclesAddr(CPU, MEMORY);
+			return {
+				size: 2,
+				CPUCycleCount: vals.cycles,
+				func: function() {
+					MEMORY.setROMProtectedValAtLocation(CPU.dbr, vals.addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
+				}
+			}
+		},
 		//STA (dp), Y - Store Accumulator to Memory
 		0x97: function() {
 			var vals = getIndirectLongIndexedYCyclesAddrBank(CPU, MEMORY);
@@ -710,8 +763,8 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
 				func: function() {
 					CPU.setYIndex(CPU.getXIndex());
-					CPU.updateZeroFlag(CPU.getXIndex());
-					CPU.updateNegativeFlag(CPU.getXIndex(), CPU.getIndexRegisterSize());
+					CPU.updateZeroFlag(CPU.getYIndex());
+					CPU.updateNegativeFlag(CPU.getYIndex(), CPU.getIndexRegisterSize());
 				}
 			}
 		},
@@ -885,6 +938,18 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//LDA (_dp_),Y - Load Accumulator from Memory
+		0xB1: function() {
+			//This is little endian, so the byte structure is ADDRL,ADDRH
+			var vals = getIndirectIndexedYCyclesAddr(CPU, MEMORY, CPU.getXIndex());
+			return {
+				size: 2,
+				CPUCycleCount: vals.cycles,
+				func: function() {
+					CPU.loadAccumulator(MEMORY.getUnsignedValAtLocation(CPU.dbr, vals.addr, CPU.getAccumulatorOrMemorySize()));
+				}
+			}
+		},
 		//LDA dp,X - Load Accumulator from Memory
 		0xB5: function() {
 			//This is little endian, so the byte structure is ADDRL,ADDRH
@@ -905,6 +970,18 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: vals.cycles,
 				func: function() {
 					CPU.loadAccumulator(MEMORY.getUnsignedValAtLocation(vals.bank, vals.addr, CPU.getAccumulatorOrMemorySize()));
+				}
+			}
+		},
+		//TYX - Transfer Y Index to X Index
+		0xBB: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					CPU.setXIndex(CPU.getYIndex());
+					CPU.updateZeroFlag(CPU.getXIndex());
+					CPU.updateNegativeFlag(CPU.getXIndex(), CPU.getIndexRegisterSize());
 				}
 			}
 		},
@@ -1095,6 +1172,16 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
 				func: function() {
 					//DO NOTHING
+				}
+			}
+		},
+		//XBA - Exchange B and A Accumulators
+		0xEB: function() {
+			return {
+				size: 1,
+				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1),
+				func: function() {
+					CPU.loadAccumulator16(CPU.getAccumulatorForXBA());
 				}
 			}
 		},
