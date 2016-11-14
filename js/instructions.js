@@ -283,6 +283,24 @@ var getInstructionMap = function(CPU, MEMORY) {
 					}
 				}
 		},
+		//PLP - Pull Status Flags
+		0x28: function() {
+			var flagMask = CPU.popStack();
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + (Timing.FAST_CPU_CYCLE << 1) + MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()),
+				func: function() {
+					(CARRY_BITMASK & flagMask) ? CPU.setCarryFlag(true) : CPU.setCarryFlag(false);
+					(ZERO_BITMASK & flagMask) ? CPU.setZeroFlag(true) : CPU.setZeroFlag(false);
+					(IRQ_DISABLE_BITMASK & flagMask) ? CPU.setIRQDisabledFlag(true) : CPU.setIRQDisabledFlag(false);
+					(DECIMAL_MODE_BITMASK & flagMask) ? CPU.setDecimalMode(DECIMAL_MODES.DECIMAL) : CPU.setDecimalMode(DECIMAL_MODES.BINARY);
+					(INDEX_REG_SELECT_BITMASK & flagMask) ? CPU.setIndexRegisterSelect(BIT_SELECT.BIT_8) : CPU.setIndexRegisterSelect(BIT_SELECT.BIT_16);
+					(MEM_ACC_SELECT_BITMASK & flagMask) ? CPU.setMemoryAccumulatorSelect(BIT_SELECT.BIT_8) : CPU.setMemoryAccumulatorSelect(BIT_SELECT.BIT_16);
+					(OVERFLOW_BITMASK & flagMask) ? CPU.setOverflowFlag(true) : CPU.setOverflowFlag(false);
+					(NEGATIVE_BITMASK & flagMask) ? CPU.setNegativeFlag(true) : CPU.setNegativeFlag(false);
+				}
+			}
+		},
 		//AND #const - AND accumulator with constant
 		0x29: function() {
 			var size = 2;
@@ -566,8 +584,8 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
 					if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
-						var MSB = CPU.popStack();
 						var LSB = CPU.popStack();
+						var MSB = CPU.popStack();
 						var val = utils.get2ByteValue(MSB, LSB);
 					} else {
 						var val = CPU.popStack();
@@ -1321,8 +1339,8 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
 					if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
-						var MSB = CPU.popStack();
 						var LSB = CPU.popStack();
+						var MSB = CPU.popStack();
 						var val = utils.get2ByteValue(MSB, LSB);
 					} else {
 						var val = CPU.popStack();

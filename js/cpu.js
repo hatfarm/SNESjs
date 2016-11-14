@@ -385,6 +385,7 @@ CPU.prototype.execute = function(cycles) {
 	var cyclesLeft = cycles + this.excessCycleTime;
 	this.excessCycleTime = 0;
 	while(cyclesLeft > 0) {
+		this.logger.debug && this.logger.log("===========================");
 		var instructionVal = this.memory.getByteAtLocation(this.pbr, this.pc);
 		var instruction = this.instructionList[instructionVal]();
 		var instructionString = this.logInstruction(instruction);
@@ -395,6 +396,7 @@ CPU.prototype.execute = function(cycles) {
 			instruction.func();
 			this.logger.debug && this.logger.log(instructionString);
 			this.checkBreakpoints();
+			this.logger.debug && this.logger.log("===========================");
 		} else {
 			this.excessCycleTime = cyclesLeft;
 			cyclesLeft = 0;
@@ -403,7 +405,7 @@ CPU.prototype.execute = function(cycles) {
 };
 
 CPU.prototype.checkBreakpoints = function() {
-	/*if (this.pbr === 0x7E && this.pc === 0x1000) {
+	/*if (this.pbr === 0x00 && this.pc === 0x8D26) {
 		this.logger.printLog();
 		debugger;
 	}*/
