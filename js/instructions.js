@@ -415,6 +415,23 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			};
 		},
+		//PHY - Push Y Index Register
+		0x5A: function() {
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
+				func: function() {
+					if(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
+						var HI = (0xFF00 & CPU.getYIndex16()) >> 8;
+						var LO = 0x00FF & CPU.getYIndex16();
+						CPU.pushStack(HI);
+						CPU.pushStack(LO);
+					} else {
+						CPU.pushStack(CPU.getYIndex8());
+					}
+				}
+			}
+		},
 		//TCD - Transfer 16-bit Accumulator to Direct Page Register
 		0x5B: function() {
 			return {
@@ -662,6 +679,23 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//PHB - Push Data Bank Register
+		0x8B: function() {
+			return {
+				size: 1,
+				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					if(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
+						var HI = (0xFF00 & CPU.getYIndex16()) >> 8;
+						var LO = 0x00FF & CPU.getYIndex16();
+						CPU.pushStack(HI);
+						CPU.pushStack(LO);
+					} else {
+						CPU.pushStack(CPU.getYIndex8());
+					}
+				}
+			}
+		},
 		//STY addr - Store Index Register Y to Memory
 		0x8C: function() {
 			var addr = MEMORY.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
@@ -758,6 +792,17 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: vals.cycles,
 				func: function() {
 					MEMORY.setROMProtectedValAtLocation(vals.bank, vals.addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
+				}
+			}
+		},
+		//TYA  - Transfer Index Register Y to Accumulator
+		0x98: function() {
+			var vals = getIndirectLongIndexedYCyclesAddrBank(CPU, MEMORY);
+			return {
+				size: 1,
+				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
+				func: function() {
+					CPU.loadAccumulator(CPU.getYIndex());
 				}
 			}
 		},
@@ -1046,6 +1091,26 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//CMP #const - Compare Accumulator with Memory
+		0xC9: function() {
+			if(CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_8) {
+				var constVal = MEMORY.getByteAtLocation(CPU.pbr, CPU.pc + 1);
+				var size = 2;
+				var cycles = MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE;
+			} else {
+				var constVal = MEMORY.getUInt16AtLocation(CPU.pbr, CPU.pc + 1);
+				var size = 3;
+				var cycles = (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + Timing.FAST_CPU_CYCLE ;
+			}
+			
+			return {
+				size: size,
+				CPUCycleCount: cycles,
+				func: function() {
+					CPU.doComparison(constVal, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
+				}
+			}
+		},
 		//DEX - Decrement X Register
 		0xCA: function() {
 			return {
@@ -1261,6 +1326,17 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//JSR addr - Jump to Subroutine - Gotta get it working...
+		/*0xFC: function() {
+				var addr = MEMORY.getUInt16AtLocation(CPU.pbr, CPU.pc + 1) + CPU.getXIndex();
+				return {
+					size: 3,
+					CPUCycleCount: (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE,
+					func: function() {
+						CPU.jumpToSubroutine(addr, null);
+					}
+				}
+		},*/
 		//SBC long,X - Subtract with borrow from Accumulator
 		0xFF: function() {
 			//This is little endian, so the byte structure is ADDRL,ADDRH,BANK
