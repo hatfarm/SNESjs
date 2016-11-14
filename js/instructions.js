@@ -735,6 +735,21 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//STA dpX - Store Accumulator to Memory
+		0x95: function() {
+			var addr = CPU.getDirectPageValue(MEMORY.getByteAtLocation(0, CPU.pc + 1), CPU.getXIndex());
+			var cycles = (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE + (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + (MEMORY.getMemAccessCycleTime(0, addr) << CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16 ? 1 : 0);
+			if (CPU.getDPRLowNotZero()) {
+				cycles += Timing.FAST_CPU_CYCLE;
+			}
+			return {
+				size: 2,
+				CPUCycleCount: cycles,
+				func: function() {
+					MEMORY.setROMProtectedValAtLocation(0, addr, CPU.getAccumulator(), CPU.getAccumulatorOrMemorySize());
+				}
+			}
+		},
 		//STA (dp), Y - Store Accumulator to Memory
 		0x97: function() {
 			var vals = getIndirectLongIndexedYCyclesAddrBank(CPU, MEMORY);

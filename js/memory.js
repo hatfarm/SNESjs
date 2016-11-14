@@ -65,6 +65,7 @@ var setVal = function(_this, bank, address, value) {
 	}
 }
 
+//TODO: This should go away and we should just have all of these locations look at the same DV's.
 var writeMirroredLoRom = function(_this, bank, address, value) {
 	setVal(_this, bank, address, value);
 	if (bank >= 0x00 && bank <= 0x7D) {

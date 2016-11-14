@@ -27,13 +27,12 @@ Super NES and Super Nintendo Entertainment System are trademarks of
 
 //This is a helper class that will write to our logging text area.
 var TheLogger = function() {
-	this.debug = true;
+	this.debug = false;
 	this.buffer = "";
 	this.logCount = 0;
 };
 
 TheLogger.prototype.printLog = function() {
-	//document.getElementById("debug_text").value += this.buffer;
 	if (this.buffer) {
 		console.log(this.buffer.substring(0, this.buffer.length - 1));
 		this.buffer = "";
@@ -44,7 +43,6 @@ TheLogger.prototype.printLog = function() {
 TheLogger.prototype.log = function(val) {
 	if(this.debug) {
 		this.buffer += val + '\n';
-		//console.log(val);
 		this.logCount++;
 		if (this.logCount > 500) {
 			this.printLog();
