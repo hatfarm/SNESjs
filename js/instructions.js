@@ -559,6 +559,23 @@ var getInstructionMap = function(CPU, MEMORY) {
 				}
 			}
 		},
+		//PLY - Pull Index Register Y from Stack
+		0x7A: function() {
+			return {
+				size: 1,
+				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
+				func: function() {
+					if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
+						var MSB = CPU.popStack();
+						var LSB = CPU.popStack();
+						var val = utils.get2ByteValue(MSB, LSB);
+					} else {
+						var val = CPU.popStack();
+					}
+					CPU.loadY(val);
+				}
+			}
+		},
 		//ADC long,X - Add with Carry (Absolute Long Indexed,X)
 		0x7F: function() {
 			//This is little endian, so the byte structure is ADDRL,ADDRH,BANK
@@ -1304,8 +1321,8 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
 					if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
-						var LSB = CPU.popStack();
 						var MSB = CPU.popStack();
+						var LSB = CPU.popStack();
 						var val = utils.get2ByteValue(MSB, LSB);
 					} else {
 						var val = CPU.popStack();
@@ -1327,16 +1344,17 @@ var getInstructionMap = function(CPU, MEMORY) {
 			}
 		},
 		//JSR addr - Jump to Subroutine - Gotta get it working...
-		/*0xFC: function() {
-				var addr = MEMORY.getUInt16AtLocation(CPU.pbr, CPU.pc + 1) + CPU.getXIndex();
+		0xFC: function() {
+				var addrLocation = MEMORY.getUInt16AtLocation(CPU.pbr, CPU.pc + 1) + CPU.getXIndex();
+				var addr = MEMORY.getUInt16AtLocation(0, addrLocation);
 				return {
 					size: 3,
-					CPUCycleCount: (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE,
+					CPUCycleCount: (MEMORY.getMemAccessCycleTime(0, addrLocation) << 1) + (MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) << 1) + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + Timing.FAST_CPU_CYCLE,
 					func: function() {
 						CPU.jumpToSubroutine(addr, null);
 					}
 				}
-		},*/
+		},
 		//SBC long,X - Subtract with borrow from Accumulator
 		0xFF: function() {
 			//This is little endian, so the byte structure is ADDRL,ADDRH,BANK
