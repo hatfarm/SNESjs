@@ -175,7 +175,7 @@ var getInstructionMap = function(CPU, MEMORY) {
 					if (CPU.getAccumulatorSizeSelect()) pushVal |= MEM_ACC_SELECT_BITMASK;
 					if (CPU.getOverflowFlag()) pushVal |= OVERFLOW_BITMASK;
 					if (CPU.getNegativeFlag()) pushVal |= NEGATIVE_BITMASK;
-					CPU.pushStack(pushVal);
+					CPU.pushStack(pushVal, false);
 				}
 			}
 		},
@@ -285,7 +285,7 @@ var getInstructionMap = function(CPU, MEMORY) {
 		},
 		//PLP - Pull Status Flags
 		0x28: function() {
-			var flagMask = CPU.popStack();
+			var flagMask = CPU.popStack(false);
 			return {
 				size: 1,
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + (Timing.FAST_CPU_CYCLE << 1) + MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()),
@@ -362,12 +362,9 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
 					if(CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
-						var HI = (0xFF00 & CPU.getAccumulator16()) >> 8;
-						var LO = 0x00FF & CPU.getAccumulator16();
-						CPU.pushStack(HI);
-						CPU.pushStack(LO);
+						CPU.pushStack(CPU.getAccumulator16(), true);
 					} else {
-						CPU.pushStack(CPU.getAccumulator8());
+						CPU.pushStack(CPU.getAccumulator8(), false);
 					}
 				}
 			}
@@ -378,7 +375,7 @@ var getInstructionMap = function(CPU, MEMORY) {
 				size: 1,
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc), //3 CPU cycles
 				func: function() {
-					CPU.pushStack(CPU.pc);
+					CPU.pushStack(CPU.pbr, false);
 				}
 			}
 		},
@@ -440,12 +437,9 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
 					if(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
-						var HI = (0xFF00 & CPU.getYIndex16()) >> 8;
-						var LO = 0x00FF & CPU.getYIndex16();
-						CPU.pushStack(HI);
-						CPU.pushStack(LO);
+						CPU.pushStack(CPU.getYIndex16(), true);
 					} else {
-						CPU.pushStack(CPU.getYIndex8());
+						CPU.pushStack(CPU.getYIndex8(), false);
 					}
 				}
 			}
@@ -513,14 +507,7 @@ var getInstructionMap = function(CPU, MEMORY) {
 				size: 1,
 				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
-					if (CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16) {
-						var LSB = CPU.popStack();
-						var MSB = CPU.popStack();
-						var val = utils.get2ByteValue(MSB, LSB);
-					} else {
-						var val = CPU.popStack();
-					}
-					CPU.loadAccumulator(val);
+					CPU.loadAccumulator(CPU.popStack(CPU.getAccumulatorOrMemorySize() === BIT_SELECT.BIT_16));
 				}
 			}
 		},
@@ -583,14 +570,7 @@ var getInstructionMap = function(CPU, MEMORY) {
 				size: 1,
 				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
-					if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
-						var LSB = CPU.popStack();
-						var MSB = CPU.popStack();
-						var val = utils.get2ByteValue(MSB, LSB);
-					} else {
-						var val = CPU.popStack();
-					}
-					CPU.loadY(val);
+					CPU.loadY(CPU.popStack(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16));
 				}
 			}
 		},
@@ -721,12 +701,9 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: (Timing.FAST_CPU_CYCLE << 1) + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc),
 				func: function() {
 					if(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
-						var HI = (0xFF00 & CPU.getYIndex16()) >> 8;
-						var LO = 0x00FF & CPU.getYIndex16();
-						CPU.pushStack(HI);
-						CPU.pushStack(LO);
+						CPU.pushStack(CPU.getYIndex16(), true);
 					} else {
-						CPU.pushStack(CPU.getYIndex8());
+						CPU.pushStack(CPU.getYIndex8(), false);
 					}
 				}
 			}
@@ -1000,7 +977,7 @@ var getInstructionMap = function(CPU, MEMORY) {
 				size: 1,
 				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + Timing.FAST_CPU_CYCLE,
 				func: function() {
-					CPU.dbr = (CPU.popStack());
+					CPU.dbr = (CPU.popStack(false));
 				}
 			}
 		},
@@ -1186,12 +1163,9 @@ var getInstructionMap = function(CPU, MEMORY) {
 				CPUCycleCount: Timing.FAST_CPU_CYCLE + MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
 					if(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
-						var HI = (0xFF00 & CPU.getXIndex16()) >> 8;
-						var LO = 0x00FF & CPU.getXIndex16();
-						CPU.pushStack(HI);
-						CPU.pushStack(LO);
+						CPU.pushStack(CPU.getXIndex16(), true);
 					} else {
-						CPU.pushStack(CPU.getXIndex8());
+						CPU.pushStack(CPU.getXIndex8(), false);
 					}
 				}
 			}
@@ -1338,14 +1312,7 @@ var getInstructionMap = function(CPU, MEMORY) {
 				size: 1,
 				CPUCycleCount: MEMORY.getMemAccessCycleTime(CPU.pbr, CPU.pc) + (Timing.FAST_CPU_CYCLE << 1) + (MEMORY.getMemAccessCycleTime(0, CPU.getStackPointer()) << CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16 ? 1 : 0),
 				func: function() {
-					if (CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16) {
-						var LSB = CPU.popStack();
-						var MSB = CPU.popStack();
-						var val = utils.get2ByteValue(MSB, LSB);
-					} else {
-						var val = CPU.popStack();
-					}
-					CPU.loadX(val);
+					CPU.loadX(CPU.popStack(CPU.getIndexRegisterSize() === BIT_SELECT.BIT_16));
 				}
 			}
 		},

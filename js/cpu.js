@@ -120,11 +120,21 @@ var CPU = function() {
 		return stack.getPointer();
 	};
 	
-	this.pushStack = function(val) {
-		stack.push(val);
+	this.pushStack = function(val, is16bit) {
+		if (is16bit) {
+			stack.push(utils.getMSBFromWord(val));
+			stack.push(utils.getLSBFromWord(val));
+		} else {
+			stack.push(val);
+		}
 	};
 	
-	this.popStack = function() {
+	this.popStack = function(is16bit) {
+		if (is16bit) {
+			var LSB = stack.pop();
+			var MSB = stack.pop();
+			return utils.get2ByteValue(MSB, LSB);
+		}
 		return stack.pop();
 	};
 	
